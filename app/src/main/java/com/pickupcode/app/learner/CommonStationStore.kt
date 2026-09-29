@@ -2,6 +2,7 @@ package com.pickupcode.app.learner
 
 import android.content.Context
 import android.util.Log
+import com.pickupcode.app.preferences.SecretCipher
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -20,6 +21,30 @@ object CommonStationStore {
 
     private const val PREFS = "common_stations"
     private const val KEY_STATIONS = "stations"
+
+    fun migrateLegacyAddresses(context: Context) {
+        readJson(context, PREFS, KEY_STATIONS)
+        readJson(context, PICKUP_PREFS, KEY_PICKUP_POINTS)
+    }
+
+    private fun readJson(context: Context, prefsName: String, key: String): String? {
+        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val stored = prefs.getString(key, null) ?: return null
+        val json = SecretCipher.decrypt(stored, "常用取件点")
+        if (json.isBlank()) return null
+        if (!SecretCipher.isEncrypted(stored)) writeJson(context, prefsName, key, json)
+        return json
+    }
+
+    private fun writeJson(context: Context, prefsName: String, key: String, json: String) {
+        try {
+            val encrypted = SecretCipher.encrypt(json, "常用取件点")
+            context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+                .edit().putString(key, encrypted).apply()
+        } catch (e: Exception) {
+            Log.e("CommonStationStore", "常用取件点加密失败，放弃写入", e)
+        }
+    }
 
     /** 存储上限：只保留站点使用频次 Top-N 的文案，防止无限膨胀。 */
     private const val MAX_ENTRIES = 60
@@ -71,14 +96,12 @@ object CommonStationStore {
         for ((k, v) in finalEntries) {
             arr.put(JSONArray().put(k).put(v))
         }
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putString(KEY_STATIONS, arr.toString()).apply()
+        writeJson(context, PREFS, KEY_STATIONS, arr.toString())
     }
 
     /** 读取常用站点列表（按使用次数降序），供地址识别优先匹配。 */
     fun getCommonStations(context: Context): List<StationEntry> {
-        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_STATIONS, null) ?: return emptyList()
+        val raw = readJson(context, PREFS, KEY_STATIONS) ?: return emptyList()
         return try {
             val arr = JSONArray(raw)
             buildList {
@@ -101,8 +124,7 @@ object CommonStationStore {
 
     /** 内部读取原始 map，避免每次解析。 */
     private fun loadInternal(context: Context): Map<String, Int> {
-        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_STATIONS, null) ?: return emptyMap()
+        val raw = readJson(context, PREFS, KEY_STATIONS) ?: return emptyMap()
         return try {
             val arr = JSONArray(raw)
             buildMap {
@@ -135,7 +157,7 @@ object CommonStationStore {
     fun registerPickupPoint(context: Context, address: String) {
         if (address.isBlank()) return
         val key = address.trim()
-        val json = context.getSharedPreferences(PICKUP_PREFS, Context.MODE_PRIVATE).getString(KEY_PICKUP_POINTS, null)
+        val json = readJson(context, PICKUP_PREFS, KEY_PICKUP_POINTS)
         val map = linkedMapOf<String, PickupPoint>()
         if (json != null) {
             try {
@@ -153,15 +175,13 @@ object CommonStationStore {
         for ((addr, p) in sorted) {
             out.put(JSONObject().apply { put("address", addr); put("name", p.name); put("count", p.count); put("last", p.lastUsedAt) })
         }
-        context.getSharedPreferences(PICKUP_PREFS, Context.MODE_PRIVATE)
-            .edit().putString(KEY_PICKUP_POINTS, out.toString()).apply()
+        writeJson(context, PICKUP_PREFS, KEY_PICKUP_POINTS, out.toString())
     }
 
     /** 该地址是否已是常用取件点（出现 >= 2 次）。返回 null 表示不是。 */
     fun isFrequentPickupPoint(context: Context, address: String): PickupPoint? {
         if (address.isBlank()) return null
-        val json = context.getSharedPreferences(PICKUP_PREFS, Context.MODE_PRIVATE).getString(KEY_PICKUP_POINTS, null)
-            ?: return null
+        val json = readJson(context, PICKUP_PREFS, KEY_PICKUP_POINTS) ?: return null
         return try {
             val arr = JSONArray(json)
             for (i in 0 until arr.length()) {
@@ -179,8 +199,7 @@ object CommonStationStore {
      * 供「常用取件地址」页的**从历史记录导入**使用——自动学到的完整地址是导入的最佳候选。
      */
     fun getPickupPoints(context: Context): List<PickupPoint> {
-        val json = context.getSharedPreferences(PICKUP_PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_PICKUP_POINTS, null) ?: return emptyList()
+        val json = readJson(context, PICKUP_PREFS, KEY_PICKUP_POINTS) ?: return emptyList()
         return try {
             val arr = JSONArray(json)
             buildList {

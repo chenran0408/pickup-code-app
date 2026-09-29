@@ -580,7 +580,7 @@ class PickupCodeAccessibilityService : AccessibilityService() {
         }
 
         // 地图地址验证（finalize 之后才有 id，写回 geo 字段与分享路径一致）
-        verifyMapAddress(address, settings, saved.map { it.id })
+        verifyMapAddress(settings, saved)
 
         // ⑦ 快递100 验证：识别到取件码时，用运单号反查取件码/地址作为标准答案，对照 OCR 结果（fire-and-forget）
         verifyWithKuaidi100(settings, allText, address, allResults)
@@ -703,20 +703,18 @@ class PickupCodeAccessibilityService : AccessibilityService() {
     }
 
     /** 地图地址验证（async, fire-and-forget）：学习 + 定向写回 geo 字段（与分享路径一致）。 */
-    private fun verifyMapAddress(address: String, settings: AppPreferences.Settings, savedIds: List<Long>) {
-        if (settings.enableMapVerify && address.isNotBlank() && savedIds.isNotEmpty()) {
-            scope.launch {
-                PostVerifier.verifyMap(this@PickupCodeAccessibilityService, address, settings.amapApiKey.ifBlank { null }) { conf, fmtAddr ->
+    private fun verifyMapAddress(settings: AppPreferences.Settings, saved: List<RecognitionPipeline.SavedCode>) {
+        if (settings.enableMapVerify) {
+            for (record in saved.filter { it.address.isNotBlank() }) scope.launch {
+                PostVerifier.verifyMap(this@PickupCodeAccessibilityService, record.address, settings.amapApiKey.ifBlank { null }) { conf, fmtAddr ->
                     try {
-                        PatternLearner.recordAddressVerified(this@PickupCodeAccessibilityService, address, conf)
+                        PatternLearner.recordAddressVerified(this@PickupCodeAccessibilityService, record.address, conf)
                     } catch (e: Exception) {
                         Log.w(TAG, "recordAddressVerified failed: ${e.message}")
                     }
                     try {
                         val repo = AppDatabase.getInstance(this@PickupCodeAccessibilityService).repository
-                        for (id in savedIds) {
-                            repo.updateGeo(id, true, conf, fmtAddr ?: "")
-                        }
+                        repo.updateGeo(record.id, true, conf, fmtAddr ?: "")
                     } catch (e: Exception) {
                         Log.w(TAG, "updateGeo failed: ${e.message}")
                     }

@@ -51,9 +51,10 @@ object CodeNotificationManager {
     private const val DUP_SEGMENT_BASE = 0x60000000       // 去重段基址
     private const val SEGMENT_MODULUS = 0x1FFFFFFF        // 段内取值模（避开 0x7FFFFFFF 结果通知位）
 
-    /** 主通知池 id 登记表：code+type → 展示中的通知 id 集合。
-     *  供「已取」按 code+type 取消全部相关通知（主通知 + 去重提示 + 提醒）。 */
-    private val activeNotifyIds = java.util.concurrent.ConcurrentHashMap<String, MutableSet<Int>>()
+    /** 主通知 ID 持久化，进程重启后仍能取消旧通知。 */
+    private const val NOTIFY_STATE_PREFS = "notif_state"
+    private const val ACTIVE_IDS_PREFIX = "active_ids_"
+    private val activeIdsLock = Any()
 
     /**
      * 进程内原子计数器；首次 nextNotifyId 时从 SP 恢复，避免三路径并发读改写同 id。
@@ -61,8 +62,20 @@ object CodeNotificationManager {
      */
     private val notifyIdCounter = java.util.concurrent.atomic.AtomicInteger(-1)
 
-    private fun trackNotifyId(type: CodeExtractor.CodeType, code: String, id: Int) {
-        activeNotifyIds.getOrPut("$type:$code") { java.util.concurrent.ConcurrentHashMap.newKeySet() }.add(id)
+    private fun activeIdsKey(type: CodeExtractor.CodeType, code: String): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest("$type:$code".toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        return ACTIVE_IDS_PREFIX + digest
+    }
+
+    private fun trackNotifyId(context: Context, type: CodeExtractor.CodeType, code: String, id: Int) {
+        synchronized(activeIdsLock) {
+            val prefs = context.getSharedPreferences(NOTIFY_STATE_PREFS, Context.MODE_PRIVATE)
+            val key = activeIdsKey(type, code)
+            val ids = prefs.getStringSet(key, emptySet()).orEmpty() + id.toString()
+            prefs.edit().putStringSet(key, ids).apply()
+        }
     }
 
     /**
@@ -112,10 +125,9 @@ object CodeNotificationManager {
     private fun dupNotifyId(type: CodeExtractor.CodeType, code: String): Int =
         ((safeId(type, code) and 0x7fffffff) % SEGMENT_MODULUS) or DUP_SEGMENT_BASE
 
-    /** 提醒闹钟请求码：按 kind 分到不同段位，避免同码「稍后提醒」与「到期提醒」共用请求码互相覆盖。
-     *  later → [0x20000000, 0x5fffffff]，expiry → [0x40000000, 0x7fffffff]，两段互斥。 */
+    /** 提醒闹钟请求码：低 29 位哈希，later 与 expiry 分别占用互斥的 0x2/0x4 号段。 */
     private fun remindRequestCode(type: CodeExtractor.CodeType, code: String, kind: String): Int =
-        (safeId(type, code) and 0x3fffffff) or (if (kind == KIND_EXPIRY) 0x40000000 else 0x20000000)
+        (safeId(type, code) and 0x1fffffff) or (if (kind == KIND_EXPIRY) 0x40000000 else 0x20000000)
 
     private data class TypeStyle(val channelId: String, val iconLabel: String, val title: String)
 
@@ -142,7 +154,6 @@ object CodeNotificationManager {
         val pendingIntent = launchPendingIntent(context)
 
         val nid = nextNotifyId(context)
-        trackNotifyId(type, code, nid)
         // X/滑动删除走 DeleteIntent → NotificationDismissReceiver（与「忽略」按钮一致：仅收起通知，DB 记录保留）
         val deleteIntent = PendingIntent.getBroadcast(context, nid,
             Intent(context, NotificationDismissReceiver::class.java).apply {
@@ -179,6 +190,7 @@ object CodeNotificationManager {
 
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         nm.notify(nid, notification)
+        trackNotifyId(context, type, code, nid)
     }
 
     /**
@@ -188,7 +200,13 @@ object CodeNotificationManager {
      */
     fun dismissByCodeAndType(context: Context, type: CodeExtractor.CodeType, code: String) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
-        activeNotifyIds.remove("$type:$code")?.forEach { nm.cancel(it) }
+        synchronized(activeIdsLock) {
+            val prefs = context.getSharedPreferences(NOTIFY_STATE_PREFS, Context.MODE_PRIVATE)
+            val key = activeIdsKey(type, code)
+            prefs.getStringSet(key, emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }
+                .forEach { nm.cancel(it) }
+            prefs.edit().remove(key).apply()
+        }
         nm.cancel(dupNotifyId(type, code))
         nm.cancel(remindNotifyId(type, code))
     }
@@ -196,7 +214,19 @@ object CodeNotificationManager {
     fun dismissById(context: Context, id: Int) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         nm.cancel(id)
-        activeNotifyIds.values.forEach { it.remove(id) }
+        synchronized(activeIdsLock) {
+            val prefs = context.getSharedPreferences(NOTIFY_STATE_PREFS, Context.MODE_PRIVATE)
+            val editor = prefs.edit()
+            for ((key, value) in prefs.all) {
+                if (!key.startsWith(ACTIVE_IDS_PREFIX)) continue
+                val ids = (value as? Set<*>)?.filterIsInstance<String>()?.toSet().orEmpty()
+                if (id.toString() in ids) {
+                    val remaining = ids - id.toString()
+                    if (remaining.isEmpty()) editor.remove(key) else editor.putStringSet(key, remaining)
+                }
+            }
+            editor.apply()
+        }
     }
 
     // ---------------------------------------------------------------

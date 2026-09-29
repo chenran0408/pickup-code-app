@@ -97,7 +97,7 @@ fun HomeScreen(
     val context = LocalContext.current
     val db = remember { AppDatabase.getInstance(context) }
     // 注册到 ViewModelStore，使 viewModelScope 随 Activity/导航正确 onCleared（勿用 remember 假 VM）
-    val vm: HomeViewModel = viewModel(factory = HomeViewModel.Factory(db.repository))
+    val vm: HomeViewModel = viewModel(factory = HomeViewModel.Factory(db.repository, context))
     val activeHistory by vm.activeHistory.collectAsState()
     val trashHistory by vm.trashHistory.collectAsState()
     val scope = rememberCoroutineScope()
@@ -146,7 +146,7 @@ fun HomeScreen(
             // 共享操作：标记已取/删除 → 移入回收站 → snackbar 撤销
             fun markAsDone(item: CodeHistory) {
                 vm.markAsDone(item,
-                    onSuccess = {
+                    onSuccess = { doneAt ->
                         scope.launch {
                             val result = snackbarHostState.showSnackbar(
                                 message = "已移至回收站，24小时后自动删除",
@@ -154,7 +154,7 @@ fun HomeScreen(
                                 duration = SnackbarDuration.Short
                             )
                             if (result == SnackbarResult.ActionPerformed) {
-                                vm.undoDone(item, trashHistory)
+                                vm.undoDone(item, doneAt)
                             }
                         }
                     },

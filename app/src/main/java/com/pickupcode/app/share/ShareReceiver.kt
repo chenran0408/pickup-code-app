@@ -495,15 +495,12 @@ object ShareReceiver {
         val savedIdsByCode = saved.associate { it.code to it.id }
 
         // Async address geocoding verification（每个码）
-        if (address.isNotBlank() && settings.enableMapVerify) {
-            for (s in saved) {
+        if (settings.enableMapVerify) {
+            for (s in saved.filter { it.address.isNotBlank() }) {
                 scope.launch(Dispatchers.IO) {
                     try {
-                        PostVerifier.verifyMap(context, address, settings.amapApiKey.ifBlank { null }) { conf, fmtAddr ->
-                            // 定向更新本次保存的 id（同码同类型并发新保存时 findByCodeAndType 会命中错误行）
-                            savedIdsByCode[s.code]?.let { id ->
-                                db.repository.updateGeo(id, true, conf, fmtAddr ?: "")
-                            }
+                        PostVerifier.verifyMap(context, s.address, settings.amapApiKey.ifBlank { null }) { conf, fmtAddr ->
+                            db.repository.updateGeo(s.id, true, conf, fmtAddr ?: "")
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Geo verify error: ${e.message}")
@@ -579,4 +576,3 @@ object ShareReceiver {
         }
     }
 }
-

@@ -137,11 +137,11 @@ object RecognitionPipeline {
                 timestamp = timestamp,
                 expiryTime = expiryTime
             ))
-            // 覆盖更新的旧截图成孤儿文件（系统清理前不回收），立即删除。
+            // 覆盖更新后仅回收不再被其他码引用的旧截图。
             // 走 Dispatchers.IO：分享/短信路径的调用方协程可能跑在 Default 上，别让文件 IO 占用 CPU 池
             if (save.replacedScreenshotPath.isNotBlank()) {
                 withContext(Dispatchers.IO) {
-                    try { java.io.File(save.replacedScreenshotPath).delete() } catch (_: Exception) {}
+                    repo.deleteScreenshotIfUnreferenced(save.replacedScreenshotPath)
                 }
             }
             saved.add(SavedCode(code, type, source, save.id, save.existed, effAddr))
