@@ -28,6 +28,7 @@ object ScreenshotStore {
 
     /** 截图目录名（与 PickupCodeAccessibilityService.saveScreenshot 保持一致）。 */
     const val DIR_NAME = "screenshots"
+    private const val SHARED_DIR_NAME = "shared_images"
 
     /**
      * 孤儿宽限期：刚写完但记录还没落库（或正在写）的文件不能立刻删。
@@ -96,9 +97,10 @@ object ScreenshotStore {
         referenced: Set<String>,
         now: Long = System.currentTimeMillis()
     ): List<String> {
-        val dir = File(context.cacheDir, DIR_NAME)
-        if (!dir.isDirectory) return emptyList()
-        val files = dir.listFiles { f -> f.isFile && f.name != ".nomedia" } ?: return emptyList()
+        val files = listOf(DIR_NAME, SHARED_DIR_NAME).flatMap { name ->
+            val dir = File(context.cacheDir, name)
+            dir.listFiles { f -> f.isFile && f.name != ".nomedia" }?.toList().orEmpty()
+        }
         if (files.isEmpty()) return emptyList()
 
         val entries = files.map { f ->

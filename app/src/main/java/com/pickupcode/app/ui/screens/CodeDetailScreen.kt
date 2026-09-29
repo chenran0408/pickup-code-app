@@ -113,11 +113,6 @@ fun CodeDetailScreen(
             EditableField(label = "码值", value = item.code, displayFontSize = 28.sp, displayFontWeight = FontWeight.Bold,
                 onSave = { newCode ->
                     onUpdateField(EditField.CODE, newCode)
-                    // 用户亲手把它改成这个值 = 强正面证据：若这种形状我们原本抓不到，顺手学成规则
-                    // （内置已能抓到的形状会被 learnFromConfirmedCode 内部跳过，不会堆垃圾规则）
-                    scope.launch(Dispatchers.IO) {
-                        PatternLearner.learnFromConfirmedCode(ctx, newCode, item.type)
-                    }
                 })
             if (item.isActive) {
                 InlineConfirm("码值正确", confirmed = confirmState.codeConfirmed, incorrect = confirmState.codeIncorrect,

@@ -52,6 +52,6 @@ object PostVerifier {
                 }
             }
         }
-        return if (res.success && res.pickUpCode != null) res else null
+        return if (res.success && res.pickUpCode != null && res.pickUpCode in ocrCodes) res else null
     }
 }

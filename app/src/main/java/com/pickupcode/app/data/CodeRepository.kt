@@ -14,8 +14,11 @@ class CodeRepository(private val dao: CodeHistoryDao) {
     suspend fun findByCodeAndType(code: String, type: String): CodeHistory? =
         dao.findByCodeAndType(code, type)
 
-    suspend fun markDoneByCodeAndType(code: String, type: String) =
-        dao.markDoneByCodeAndType(code, type)
+    suspend fun markDoneByCodeAndType(code: String, type: String, doneAt: Long) =
+        dao.markDoneByCodeAndType(code, type, doneAt)
+
+    suspend fun getArchivedByAction(code: String, type: String, doneAt: Long): List<CodeHistory> =
+        dao.getArchivedByAction(code, type, doneAt)
 
     suspend fun restore(id: Long) = dao.restore(id)
 
@@ -38,8 +41,11 @@ class CodeRepository(private val dao: CodeHistoryDao) {
     suspend fun updateCabinet(id: Long, cabinet: String) = dao.updateCabinet(id, cabinet)
 
     suspend fun cleanExpired(before: Long, onScreenshot: (String) -> Unit) {
-        dao.getExpiredScreenshots(before).forEach { onScreenshot(it) }
+        val paths = dao.getExpiredScreenshots(before).distinct()
         dao.deleteExpiredTrash(before)
+        for (path in paths) {
+            if (dao.countScreenshotReferences(path) == 0) onScreenshot(path)
+        }
     }
 
     /**
@@ -71,18 +77,18 @@ class CodeRepository(private val dao: CodeHistoryDao) {
         if (ids.isEmpty()) return
         val paths = dao.getScreenshotPathsByIds(ids)
         dao.deleteByIds(ids)
-        paths.forEach { deleteFileQuietly(it) }
+        paths.distinct().forEach { deleteScreenshotIfUnreferenced(it) }
     }
 
     suspend fun deleteById(id: Long) {
         val paths = dao.getScreenshotPathsByIds(listOf(id))
         dao.deleteById(id)
-        paths.forEach { deleteFileQuietly(it) }
+        paths.distinct().forEach { deleteScreenshotIfUnreferenced(it) }
     }
 
     /** 删文件不抛异常：图片缺失只影响详情页预览，不该让删除记录失败。 */
-    private fun deleteFileQuietly(path: String) {
-        if (path.isBlank()) return
+    suspend fun deleteScreenshotIfUnreferenced(path: String) {
+        if (path.isBlank() || dao.countScreenshotReferences(path) != 0) return
         try {
             java.io.File(path).delete()
         } catch (_: Exception) {

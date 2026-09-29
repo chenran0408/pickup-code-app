@@ -24,6 +24,8 @@ import androidx.lifecycle.lifecycleScope
 import com.pickupcode.app.data.AppDatabase
 import com.pickupcode.app.data.CodeHistory
 import com.pickupcode.app.extractor.CodeExtractor
+import com.pickupcode.app.learner.PatternLearner
+import com.pickupcode.app.service.CodeCompletion
 import com.pickupcode.app.preferences.AppPreferences
 import com.pickupcode.app.share.ShareReceiver
 import com.pickupcode.app.service.PickupCodeAccessibilityService
@@ -41,6 +43,7 @@ import com.pickupcode.app.ui.screens.trash.TrashScreen
 import com.pickupcode.app.ui.theme.PickupCodeTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -218,7 +221,22 @@ class MainActivity : ComponentActivity() {
                     lifecycleScope.launch(Dispatchers.IO) {
                         // 定向更新对应列，避免整行 update 用旧快照覆盖快速连改的其它字段（M20）
                         when (field) {
-                            EditField.CODE -> db.repository.updateCode(codeId, value)
+                            EditField.CODE -> {
+                                val result = CodeCompletion.changeCode(this@MainActivity, db.repository, codeId, value)
+                                if (result == CodeCompletion.EditCodeResult.SAVED) {
+                                    PatternLearner.learnFromConfirmedCode(this@MainActivity, value.trim(), code.type)
+                                } else {
+                                    val message = when (result) {
+                                        CodeCompletion.EditCodeResult.INVALID -> "码值格式无效"
+                                        CodeCompletion.EditCodeResult.DUPLICATE -> "该码值已有待取记录"
+                                        CodeCompletion.EditCodeResult.MISSING -> "记录已不存在"
+                                        else -> ""
+                                    }
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(this@MainActivity, message, Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
                             EditField.SOURCE -> db.repository.updateSource(codeId, value)
                             EditField.CABINET -> db.repository.updateCabinet(codeId, value)
                             EditField.ADDRESS -> db.repository.updatePickupAddress(codeId, value)
@@ -228,11 +246,14 @@ class MainActivity : ComponentActivity() {
                 onMarkDone = { id ->
                     lifecycleScope.launch(Dispatchers.IO) {
                         try {
-                            item?.let { db.repository.markDoneByCodeAndType(it.code, it.type) }
+                            val done = com.pickupcode.app.service.CodeCompletion.markDone(
+                                this@MainActivity, db.repository, id
+                            )
+                            if (done != null) withContext(Dispatchers.Main) { onBack() }
                         } catch (e: Exception) {
                             Log.e("MainActivity", "标记已取失败", e)
                         }
-                    }.invokeOnCompletion { onBack() }
+                    }
                 }
             )
         } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
