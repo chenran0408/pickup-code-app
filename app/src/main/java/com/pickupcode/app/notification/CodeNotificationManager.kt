@@ -127,7 +127,7 @@ object CodeNotificationManager {
 
     /** 提醒闹钟请求码：低 29 位哈希，later 与 expiry 分别占用互斥的 0x2/0x4 号段。 */
     private fun remindRequestCode(type: CodeExtractor.CodeType, code: String, kind: String): Int =
-        (safeId(type, code) and 0x1fffffff) or (if (kind == KIND_EXPIRY) 0x40000000 else 0x20000000)
+        ReminderRequestCodes.current(type.name, code, kind)
 
     private data class TypeStyle(val channelId: String, val iconLabel: String, val title: String)
 
@@ -259,6 +259,8 @@ object CodeNotificationManager {
     private fun scheduleRemind(context: Context, code: String, type: CodeExtractor.CodeType,
                                source: String, delayMs: Long, kind: String) {
         val alarm = context.getSystemService(AlarmManager::class.java) ?: return
+        // 更新提醒时一并清理升级前的同类请求码，避免新旧到期提醒同时存在。
+        cancelRemindKind(context, alarm, code, type, kind)
         val intent = Intent(context, RemindReceiver::class.java).apply {
             putExtra(EXTRA_REMIND_CODE, code)
             putExtra(EXTRA_REMIND_TYPE, type.name)
@@ -325,10 +327,18 @@ object CodeNotificationManager {
     /** 取消已设置的提醒闹钟（用户提前取件时调用）：later 与 expiry 两类一并取消。 */
     fun cancelRemind(context: Context, code: String, type: CodeExtractor.CodeType) {
         val alarm = context.getSystemService(AlarmManager::class.java) ?: return
-        val intent = Intent(context, RemindReceiver::class.java)
         for (kind in listOf(KIND_LATER, KIND_EXPIRY)) {
-            val pi = PendingIntent.getBroadcast(context, remindRequestCode(type, code, kind), intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            cancelRemindKind(context, alarm, code, type, kind)
+        }
+    }
+
+    private fun cancelRemindKind(context: Context, alarm: AlarmManager, code: String,
+                                 type: CodeExtractor.CodeType, kind: String) {
+        val intent = Intent(context, RemindReceiver::class.java)
+        for (requestCode in ReminderRequestCodes.cancellationCandidates(type.name, code, kind)) {
+            // 只查找已有的广播，不创建空提醒或改写旧提醒 extras。
+            val pi = PendingIntent.getBroadcast(context, requestCode, intent,
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE) ?: continue
             alarm.cancel(pi)
             pi.cancel()
         }
