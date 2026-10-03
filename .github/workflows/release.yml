@@ -66,15 +66,35 @@ jobs:
         run: ./gradlew testDebugUnitTest --console=plain
 
       - name: Build release APKs
+        run: ./gradlew :app:assembleRelease --console=plain
+
+      # 在独立步骤签名，不依赖先前测试启动的 Gradle daemon 的环境变量。
+      - name: Sign release APK
+        if: env.SIGNED == '1'
         env:
           PICKUP_STORE_PASSWORD: ${{ secrets.PICKUP_STORE_PASSWORD }}
           PICKUP_KEY_ALIAS: ${{ secrets.PICKUP_KEY_ALIAS }}
           PICKUP_KEY_PASSWORD: ${{ secrets.PICKUP_KEY_PASSWORD }}
         run: |
-          if [ -f release.keystore ]; then
-            export PICKUP_STORE_FILE="$GITHUB_WORKSPACE/release.keystore"
+          set -euo pipefail
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          test -s "$GITHUB_WORKSPACE/release.keystore"
+          test -n "$PICKUP_STORE_PASSWORD"
+          test -n "$PICKUP_KEY_ALIAS"
+          test -n "$PICKUP_KEY_PASSWORD"
+          "$APKSIGNER" sign --ks "$GITHUB_WORKSPACE/release.keystore" \
+            --ks-key-alias "$PICKUP_KEY_ALIAS" \
+            --ks-pass env:PICKUP_STORE_PASSWORD --key-pass env:PICKUP_KEY_PASSWORD \
+            --out app/build/outputs/apk/release/app-arm64-v8a-release.apk \
+            app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
+
+      - name: Select APK
+        run: |
+          if [ "$SIGNED" = "1" ]; then
+            echo "APK=app/build/outputs/apk/release/app-arm64-v8a-release.apk" >> "$GITHUB_ENV"
+          else
+            echo "APK=app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk" >> "$GITHUB_ENV"
           fi
-          ./gradlew :app:assembleRelease --console=plain
 
       # 关键校验：产物版本号必须与 tag 一致，否则直接失败（防止再次出现 tag/产物错位）
       # 注意：无 keystore 时 AGP 的产物名会带 -unsigned 后缀，所以这里用通配匹配，不能写死文件名。
@@ -85,8 +105,7 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
           AAPT2=$(command -v aapt2 || ls "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)
           if [ -z "$AAPT2" ]; then echo "::error::找不到 aapt2"; ls "${ANDROID_HOME:-}/build-tools" || true; exit 1; fi
-          APK=$(ls app/build/outputs/apk/release/app-arm64-v8a-release*.apk 2>/dev/null | head -1)
-          if [ -z "$APK" ]; then echo "::error::找不到 APK 产物"; ls -R app/build/outputs/apk/release || true; exit 1; fi
+          test -s "$APK"
           BADGING=$("$AAPT2" dump badging "$APK")
           VERSION_NAME=$(echo "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
           VERSION_CODE=$(echo "$BADGING" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p")
@@ -100,7 +119,6 @@ jobs:
       - name: Verify signature
         run: |
           APKSIGNER=$(command -v apksigner || ls "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
-          APK=$(ls app/build/outputs/apk/release/app-arm64-v8a-release*.apk | head -1)
           if [ "$SIGNED" = "1" ]; then
             "$APKSIGNER" verify --print-certs "$APK"
           else
@@ -109,8 +127,8 @@ jobs:
 
       - name: Compute SHA-256
         run: |
-          cd app/build/outputs/apk/release
-          sha256sum app-arm64-v8a-release*.apk | tee "$GITHUB_WORKSPACE/SHA256SUMS.txt"
+          APK_NAME=$(basename "$APK")
+          (cd app/build/outputs/apk/release && sha256sum "$APK_NAME") | tee "$GITHUB_WORKSPACE/SHA256SUMS.txt"
           {
             echo "## 产物校验"
             echo '```'
@@ -131,7 +149,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            app/build/outputs/apk/release/app-arm64-v8a-release*.apk
+            app/build/outputs/apk/release/app-arm64-v8a-release.apk
             SHA256SUMS.txt
             docs/performance/results-1.2.0.json
           body_path: docs/RELEASE_NOTES.md
