@@ -144,7 +144,7 @@ private fun TrashCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
         ),
-        shape = RoundedCornerShape(14.dp)
+        shape = MaterialTheme.shapes.medium
     ) {
         Column(Modifier.padding(14.dp)) {
             Text(

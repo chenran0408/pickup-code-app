@@ -57,10 +57,6 @@ import kotlin.math.roundToInt
 
 private const val TAG = "SettingsScreen"
 
-// 柔和雾蓝：开关激活 / 滑块 / 统计按钮强调（沿用原设置页强调色）
-private val ValBlue = Color(0xFF8DC0E0)
-private val ValBlueLight = Color(0xFFBBD8EC)
-
 /** 各 section 共享的上下文，避免每个私有 Composable 传一堆参数 */
 private data class SettingsCtx(
     val ctx: Context,
@@ -217,7 +213,7 @@ private fun SettingsSectionCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         // 滚动列表里的阴影每帧重绘是卡顿源之一：降为 0，用浅描边保持分组视觉
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = MaterialTheme.shapes.medium,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
     ) {
         Column(
@@ -299,8 +295,8 @@ private fun SettingsSwitch(
             checked = checked,
             onCheckedChange = onChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = ValBlue,
-                checkedTrackColor = ValBlueLight,
+                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
                 uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
             )
@@ -347,8 +343,8 @@ private fun RecognitionSettingsSection(sc: SettingsCtx) {
                 valueRange = 0.1f..0.8f,
                 modifier = Modifier.weight(1f),
                 colors = SliderDefaults.colors(
-                    thumbColor = ValBlue,
-                    activeTrackColor = ValBlueLight,
+                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = MaterialTheme.colorScheme.primaryContainer,
                     inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             )
@@ -533,7 +529,7 @@ private fun NotificationStatusCard(sc: SettingsCtx) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = container),
-        shape = RoundedCornerShape(14.dp)
+        shape = MaterialTheme.shapes.medium
     ) {
         Column(Modifier.padding(12.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
@@ -554,8 +550,8 @@ private fun RulesSection(onRulesClick: () -> Unit) {
         OutlinedButton(
             onClick = onRulesClick,
             modifier = Modifier.fillMaxWidth(),
-            border = BorderStroke(1.dp, ValBlue),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = ValBlue)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
         ) { Text("管理识别规则 →") }
     }
 }
@@ -566,8 +562,8 @@ private fun LearningStatsSection(sc: SettingsCtx, onStatsClick: () -> Unit) {
         OutlinedButton(
             onClick = onStatsClick,
             modifier = Modifier.fillMaxWidth(),
-            border = BorderStroke(1.dp, ValBlue),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = ValBlue)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
         ) { Text("查看详细统计 →") }
         LearningStatsPanel(sc.ctx, sc.scope)
     }
@@ -718,8 +714,8 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
                 }
             },
             modifier = Modifier.fillMaxWidth(),
-            border = BorderStroke(1.dp, ValBlue),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = ValBlue)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
         ) { Text(if (probing) "测试中…（最多 40 秒）" else "测试 AI 连接") }
         probeText?.let { msg ->
             Text(
@@ -741,8 +737,8 @@ private fun AppearanceSection(sc: SettingsCtx) {
                     onClick = { sc.saveRun { AppPreferences.setDarkMode(sc.ctx, v) } },
                     shape = SegmentedButtonDefaults.itemShape(i, 3),
                     colors = SegmentedButtonDefaults.colors(
-                        activeContainerColor = ValBlue,
-                        activeContentColor = MaterialTheme.colorScheme.onSurface,
+                        activeContainerColor = MaterialTheme.colorScheme.primary,
+                        activeContentColor = MaterialTheme.colorScheme.onPrimary,
                         inactiveContainerColor = MaterialTheme.colorScheme.surface,
                         inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -769,7 +765,7 @@ private fun SavedAddressSection(onClick: () -> Unit) {
             Text(
                 "管理常用地址 ›",
                 style = MaterialTheme.typography.bodyMedium,
-                color = ValBlue,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
                     .clickable { onClick() }
                     .padding(vertical = 4.dp)
@@ -790,7 +786,7 @@ private fun AboutSection(sc: SettingsCtx) {    SettingsSectionCard(title = "关�
             Text(
                 "GitHub: https://github.com/chenran0408/pickup-code-app",
                 style = MaterialTheme.typography.bodySmall,
-                color = ValBlue,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
                     .clickable { uriHandler.openUri("https://github.com/chenran0408/pickup-code-app") }
                     .padding(vertical = 2.dp)
@@ -801,7 +797,7 @@ private fun AboutSection(sc: SettingsCtx) {    SettingsSectionCard(title = "关�
                 Text(
                     "识别调试",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ValBlue,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .clickable { showDebug = true }
                         .padding(vertical = 2.dp)
@@ -879,11 +875,11 @@ private fun LearningStatsPanel(ctx: Context, scope: CoroutineScope) {
         }
 
         if (suggestions.isNotEmpty()) {
-            Text("候选模式：", style = MaterialTheme.typography.labelMedium, color = ValBlue)
+            Text("候选模式：", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             for (sg in suggestions.take(3)) {
                 Text("  ${sg.label} — ${sg.count} 条未匹配", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
                 Text("  样例: ${sg.sampleCodes.joinToString("，")}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("  建议: ${sg.proposedRegex}", style = MaterialTheme.typography.bodySmall, color = ValBlue)
+                Text("  建议: ${sg.proposedRegex}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
             }
         }
 

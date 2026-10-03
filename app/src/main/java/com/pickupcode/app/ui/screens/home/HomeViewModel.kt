@@ -30,9 +30,13 @@ class HomeViewModel(private val repo: CodeRepository) : ViewModel() {
     var dedupCount by mutableIntStateOf(0)
         private set
 
+    private var dedupJob: kotlinx.coroutines.Job? = null
+
     fun refreshDedupCount() {
-        viewModelScope.launch(Dispatchers.IO) {
-            dedupCount = repo.countDuplicateGroups()
+        dedupJob?.cancel()
+        dedupJob = viewModelScope.launch {
+            val count = kotlinx.coroutines.withContext(Dispatchers.IO) { repo.countDuplicateGroups() }
+            dedupCount = count
         }
     }
 

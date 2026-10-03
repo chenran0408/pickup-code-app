@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pickupcode.app.preferences.AppPreferences
 
 // 清爽蓝色系（浅色）
@@ -24,6 +25,14 @@ private val LightColorScheme = lightColorScheme(
     onSecondary = OnSecondary,
     secondaryContainer = SecondaryContainer,
     onSecondaryContainer = OnSecondaryContainer,
+    surfaceTint = Primary,
+    outline = Color(0xFF9CA3AF),
+    outlineVariant = Color(0xFFD1D5DB),
+    surfaceContainerLowest = Surface,
+    surfaceContainerLow = Color(0xFFF9FAFB),
+    surfaceContainer = Background,
+    surfaceContainerHigh = Color(0xFFEFF2F6),
+    surfaceContainerHighest = Color(0xFFE5E7EB),
     surface = Surface,
     onSurface = OnSurface,
     surfaceVariant = SurfaceVariant,
@@ -44,6 +53,14 @@ private val DarkColorScheme = darkColorScheme(
     onSecondary = Color(0xFF170F29),
     secondaryContainer = Color(0xFF3B2A63),
     onSecondaryContainer = Color(0xFFE9E4FC),
+    surfaceTint = Color(0xFF60A5FA),
+    outline = Color(0xFF6B7280),
+    outlineVariant = Color(0xFF374151),
+    surfaceContainerLowest = Color(0xFF0B1220),
+    surfaceContainerLow = Color(0xFF111C2E),
+    surfaceContainer = Color(0xFF1F2937),
+    surfaceContainerHigh = Color(0xFF263244),
+    surfaceContainerHighest = Color(0xFF374151),
     surface = Color(0xFF1F2937),
     onSurface = Color(0xFFE5E7EB),
     surfaceVariant = Color(0xFF374151),
@@ -54,12 +71,12 @@ private val DarkColorScheme = darkColorScheme(
     onBackground = Color(0xFFE5E7EB)
 )
 
-// Sleek 小圆角（sm=4dp, md=8dp）——利落方正
+// 按控件角色统一圆角：按钮/筛选 12dp，卡片 16dp，对话框 24dp。
 private val AppShapes = Shapes(
-    small = RoundedCornerShape(8.dp),
-    medium = RoundedCornerShape(8.dp),
-    large = RoundedCornerShape(4.dp),
-    extraLarge = RoundedCornerShape(8.dp)
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(24.dp)
 )
 
 @Composable
@@ -67,12 +84,11 @@ fun PickupCodeTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val settings by AppPreferences.observe(context).collectAsState(
-        initial = AppPreferences.Settings()
-    )
+    val mode by androidx.compose.runtime.remember(context) { AppPreferences.observeTheme(context) }
+        .collectAsStateWithLifecycle(initialValue = "system")
 
     val systemDark = isSystemInDarkTheme()
-    val isDark = when (settings.darkMode) {
+    val isDark = when (mode) {
         "dark" -> true
         "light" -> false
         else -> systemDark

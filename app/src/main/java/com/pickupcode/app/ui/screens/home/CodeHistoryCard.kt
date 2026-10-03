@@ -1,33 +1,14 @@
 package com.pickupcode.app.ui.screens.home
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,149 +19,74 @@ import com.pickupcode.app.data.CodeHistory
 import com.pickupcode.app.ui.components.BrandBadge
 import com.pickupcode.app.ui.components.BrandLogo
 import com.pickupcode.app.ui.components.IconText
-import com.pickupcode.app.ui.theme.TypeCoupon
-import com.pickupcode.app.ui.theme.TypeFood
-import com.pickupcode.app.ui.theme.TypeParcel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private fun typeColor(type: String) = when (type) {
-    "pickup_food" -> TypeFood
-    "coupon" -> TypeCoupon
-    else -> TypeParcel
-}
-
-private fun typeLabel(type: String) = when (type) {
-    "pickup_food" -> "取餐"
-    "coupon" -> "券码"
-    else -> "取件"
-}
-
 @Composable
-fun CodeHistoryCard(
-    item: CodeHistory,
-    onClick: () -> Unit,
-    onDone: () -> Unit,
-    onDelete: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val color = typeColor(item.type)
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 左侧彩色竖条
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .padding(vertical = 10.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(color)
-            )
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 12.dp, top = 14.dp, bottom = 14.dp)
-            ) {
-                Text(
-                    text = item.code,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "${item.source} · ${formatTime(item.timestamp)}" + when {
-                        !item.isActive && item.archiveKind == "done" -> " · 已取"
-                        item.isActive && item.expiryTime > 0 && item.expiryTime <= System.currentTimeMillis() -> " · 已过期"
-                        else -> ""
-                    },
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (item.pickupAddress.isNotBlank()) {
-                    IconText(
-                        icon = R.drawable.ic_map_pin,
-                        text = item.pickupAddress,
-                        iconSize = 13.dp,
-                        style = LocalTextStyle.current.copy(fontSize = 12.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
+fun CodeHistoryCard(item: CodeHistory, onClick: () -> Unit, onDone: () -> Unit,
+    onDelete: () -> Unit, onCopy: () -> Unit, now: Long, modifier: Modifier = Modifier) {
+    var menu by remember(item.id) { mutableStateOf(false) }
+    val formattedTime = remember(item.timestamp) {
+        Instant.ofEpochMilli(item.timestamp).atZone(ZoneId.systemDefault()).format(CARD_TIME_FORMATTER)
+    }
+    val logo = remember(item.source, item.shareSourceName, item.shareSourcePkg) {
+        BrandLogo.logoRes(item.source, item.shareSourceName, item.shareSourcePkg)
+    }
+    val status = when {
+        !item.isActive -> "已取"
+        item.expiryTime in 1..now -> "已过期"
+        else -> ""
+    }
+    Card(onClick = onClick, modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val stackActions = maxWidth < 340.dp || LocalDensity.current.fontScale > 1.15f
+            val doneButton: @Composable () -> Unit = {
+                FilledTonalButton(onClick = onDone, modifier = Modifier.heightIn(min = 48.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp), shape = MaterialTheme.shapes.small,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer)) {
+                    Text(if (item.isActive) "已取" else "恢复")
                 }
             }
-
-            // 品牌单色图标（未收录的品牌回退为类型徽标）—— 容器+配色统一走 BrandBadge
-            val logoRes = BrandLogo.logoRes(item.source, item.shareSourceName, item.shareSourcePkg)
-            if (logoRes != null) {
-                BrandBadge(
-                    res = logoRes,
-                    contentDescription = item.source.ifBlank { item.shareSourceName },
-                    modifier = Modifier.padding(end = 8.dp),
-                    boxSize = 28.dp
-                )
-            } else {
-                // 类型 badge
-                Text(
-                    text = typeLabel(item.type),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = color,
-                    modifier = Modifier
-                        .padding(end = 8.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(color.copy(alpha = 0.1f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                )
-            }
-
-            // 操作按钮
-            IconButton(onClick = onDone, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    if (item.isActive) Icons.Default.Check else Icons.Default.Add,
-                    contentDescription = if (item.isActive) "标记已取" else "恢复待取",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "删除",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
-                )
+            Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(item.code, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                            .clickable(onClickLabel = "复制码值", onClick = onCopy).wrapContentHeight(Alignment.CenterVertically))
+                    if (!stackActions) doneButton()
+                    Box {
+                        IconButton(onClick = { menu = true }, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Default.MoreVert, "更多记录操作")
+                        }
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(text = { Text("查看详情") }, onClick = { menu = false; onClick() })
+                            DropdownMenuItem(text = { Text("复制码值") }, onClick = { menu = false; onCopy() })
+                            DropdownMenuItem(text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                                onClick = { menu = false; onDelete() })
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (logo != null) BrandBadge(res = logo, contentDescription = null, boxSize = 20.dp)
+                    Text("${item.source.ifBlank { when (item.type) { "coupon" -> "券码"; "pickup_food" -> "取餐"; else -> "取件" } }} · $formattedTime" +
+                        if (status.isEmpty()) "" else " · $status",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (item.pickupAddress.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    IconText(R.drawable.ic_map_pin, item.pickupAddress, iconSize = 14.dp,
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                }
+                if (stackActions) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { doneButton() }
             }
         }
     }
 }
 
-// 格式化器缓存在顶层：写在函数体里等于**每个卡片、每次调用都 ofPattern 一次**
-//（ofPattern 要解析 pattern 并构建字段列表）。同仓库的 DedupScreen / CodeDetailScreen
-// 一直是这么写的，这里之前漏了。注意这**不是**主页滑动卡顿的原因（实测单行只占一帧预算 0.05%），
-// 只是与仓库其它页面写法保持一致、顺手收掉。
 private val CARD_TIME_FORMATTER = DateTimeFormatter.ofPattern("MM-dd HH:mm")
-
-private fun formatTime(timestamp: Long): String {
-    return Instant.ofEpochMilli(timestamp)
-        .atZone(ZoneId.systemDefault())
-        .format(CARD_TIME_FORMATTER)
-}

@@ -397,9 +397,9 @@ fun CodeDetailScreen(
                         }
                         onMarkDone(item.id)
                     }, modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8DC0E0), contentColor = Color.White)) {
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)) {
                         IconText(R.drawable.ic_package, if (item.isActive) "标记已取" else "恢复未取", iconSize = 16.dp,
-                            color = Color.White, iconTint = Color.White)
+                            color = MaterialTheme.colorScheme.onPrimary, iconTint = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
                 // C3: 稍后提醒（1 小时后推通知）
@@ -491,7 +491,7 @@ private fun EditableField(label: String, value: String, displayFontSize: android
                     Text(value, fontSize = displayFontSize, fontWeight = displayFontWeight, color = MaterialTheme.colorScheme.onSurface)
                     TextButton(
                         onClick = { editing = true; editedValue = value },
-                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF8DC0E0))
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                     ) { Text("编辑") }
                 }
             }

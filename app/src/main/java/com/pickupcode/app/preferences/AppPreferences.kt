@@ -11,6 +11,9 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.Dispatchers
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -31,6 +34,9 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "se
  * 用户需重新输入。首次升级自动解密旧明文（非 "v1:" 前缀视为明文原样返回）。
  */
 object AppPreferences {
+    /** 主题订阅只取主题键，不因其它设置更新重复访问 Keystore。 */
+    fun observeTheme(context: Context): Flow<String> = context.dataStore.data
+        .map { it[KEY_DARK_MODE] ?: "system" }.distinctUntilChanged()
 
     private const val TAG = "AppPreferences"
 
@@ -152,7 +158,7 @@ object AppPreferences {
                 enableSmsNotifications = prefs[KEY_ENABLE_SMS_NOTIFICATIONS] ?: false,
                 enableExpiryRemind = prefs[KEY_ENABLE_EXPIRY_REMIND] ?: true
             )
-        }
+        }.flowOn(Dispatchers.IO)
     }
 
     suspend fun isExpiryRemindEnabled(context: Context): Boolean =

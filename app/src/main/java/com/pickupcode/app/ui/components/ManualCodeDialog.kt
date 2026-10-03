@@ -4,11 +4,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.unit.dp
-import com.pickupcode.app.extractor.CodeExtractor
 import com.pickupcode.app.extractor.CodeValidator
-import com.pickupcode.app.ui.theme.TypeFood
-import com.pickupcode.app.ui.theme.TypeParcel
 
 /**
  * 手动输入取餐码/取件码的对话框
@@ -21,12 +22,14 @@ fun ManualCodeDialog(
     var code by remember { mutableStateOf("") }
     var source by remember { mutableStateOf("") }
     var codeType by remember { mutableStateOf("pickup_food") }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("手动录入") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // 类型选择
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
@@ -36,10 +39,10 @@ fun ManualCodeDialog(
                         colors = FilterChipDefaults.filterChipColors(
                             containerColor = MaterialTheme.colorScheme.surface,
                             labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            selectedContainerColor = TypeFood, // 取餐蓝
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
                             iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
+                            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     )
                     FilterChip(
@@ -49,10 +52,10 @@ fun ManualCodeDialog(
                         colors = FilterChipDefaults.filterChipColors(
                             containerColor = MaterialTheme.colorScheme.surface,
                             labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            selectedContainerColor = TypeParcel, // 取件紫
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
                             iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
+                            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     )
                 }
@@ -72,7 +75,7 @@ fun ManualCodeDialog(
                     label = { Text("取餐码/取件码") },
                     placeholder = { Text("如：A-356 或 10-2-7507") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus)
                 )
             }
         },

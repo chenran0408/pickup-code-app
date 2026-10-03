@@ -1,5 +1,8 @@
 package com.pickupcode.app.ui.screens.home
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,7 +49,8 @@ fun FilterChipRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         filters.forEach { (key, label) ->
@@ -59,6 +63,7 @@ fun FilterChipRow(
             }
 
             FilterChip(
+                modifier = Modifier.heightIn(min = 48.dp),
                 selected = selected,
                 onClick = { onFilterChange(key) },
                 label = { Text(text = label, fontSize = 13.sp) },
