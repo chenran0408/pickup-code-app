@@ -88,7 +88,7 @@ class HomeViewModel(private val repo: CodeRepository) : ViewModel() {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                onError("撤销失败，请在回收站恢复")
+                onError("撤销失败，请在已取列表恢复")
             }
         }
     }

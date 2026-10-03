@@ -16,23 +16,8 @@ interface CodeHistoryDao {
     @Query("SELECT * FROM code_history WHERE isActive = 0 AND archiveKind = 'done' ORDER BY doneAt DESC")
     fun getCompletedFlow(): Flow<List<CodeHistory>>
 
-    @Query("SELECT * FROM code_history ORDER BY timestamp DESC")
-    suspend fun getAll(): List<CodeHistory>
-
     @Query("UPDATE code_history SET isActive = 0, doneAt = :doneAt, archiveKind = 'deleted' WHERE id = :id")
     suspend fun moveToTrash(id: Long, doneAt: Long)
-
-    /** 恢复采用追加与精确去重；整个记录批次失败时回滚，不覆盖当前记录。 */
-    @Transaction
-    suspend fun importRecords(records: List<CodeHistory>): Int {
-        val existing = getAll().map { it.copy(id = 0, screenshotPath = "") }.toMutableSet()
-        var inserted = 0
-        records.forEach { record ->
-            val portable = record.copy(id = 0, screenshotPath = "")
-            if (existing.add(portable)) { insert(portable); inserted++ }
-        }
-        return inserted
-    }
 
     @Query("SELECT * FROM code_history WHERE id = :id")
     fun getById(id: Long): Flow<CodeHistory?>

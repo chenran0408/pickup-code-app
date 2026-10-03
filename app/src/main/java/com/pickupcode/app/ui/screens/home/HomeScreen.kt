@@ -113,14 +113,13 @@ fun HomeScreen(
     val now by androidx.compose.runtime.produceState(System.currentTimeMillis()) {
         while (true) { value = System.currentTimeMillis(); kotlinx.coroutines.delay(60_000) }
     }
-    var pendingOnly by rememberSaveable { mutableStateOf(true) }
     var confirmGroup by remember { mutableStateOf<List<CodeHistory>?>(null) }
 
-    val filteredHistory = remember(activeHistory, completedHistory, typeFilter, pendingOnly, completedOnly, expiredOnly, now) {
-        (if (completedOnly) completedHistory else if (!pendingOnly && !expiredOnly)
+    val filteredHistory = remember(activeHistory, completedHistory, typeFilter, completedOnly, expiredOnly, now) {
+        (if (completedOnly) completedHistory else if (!expiredOnly)
             (activeHistory + completedHistory).sortedByDescending { it.timestamp } else activeHistory).filter { h ->
             (!expiredOnly || (h.expiryTime > 0 && h.expiryTime <= now)) &&
-            (!pendingOnly || (h.type != "coupon" && (h.expiryTime == 0L || h.expiryTime > now))) && when (typeFilter) {
+            when (typeFilter) {
                 "food" -> h.type == "pickup_food"
                 "parcel" -> h.type == "pickup_parcel"
                 "coupon" -> h.type == "coupon"
@@ -153,7 +152,7 @@ fun HomeScreen(
 
             LaunchedEffect(Unit) { vm.cleanExpired() }
 
-            // 共享操作：标记已取/删除 → 移入回收站 → snackbar 撤销
+            // 已取保留历史；删除进回收站；操作后可撤销。
             fun markAsDone(item: CodeHistory) {
                 vm.markAsDone(item,
                     onSuccess = { batch ->
@@ -266,34 +265,18 @@ fun HomeScreen(
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
             item {
-                val pending = HomeGrouping.pending(activeHistory.filter { it.expiryTime == 0L || it.expiryTime > now })
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    shape = RoundedCornerShape(18.dp)
-                ) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("待取清单", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("${pending.sumOf { it.second.size }} 件待取 · ${pending.count { it.first.isNotBlank() }} 个地点",
-                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            androidx.compose.material3.FilterChip(selected = pendingOnly,
-                                onClick = { pendingOnly = true; completedOnly = false; expiredOnly = false; typeFilter = "all" }, label = { Text("待取") })
-                            androidx.compose.material3.FilterChip(selected = !pendingOnly && !completedOnly && !expiredOnly,
-                                onClick = { pendingOnly = false; completedOnly = false; expiredOnly = false }, label = { Text("全部记录") })
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            androidx.compose.material3.FilterChip(selected = completedOnly,
-                                onClick = { completedOnly = true; expiredOnly = false; pendingOnly = false }, label = { Text("已取 ${completedHistory.size}") })
-                            androidx.compose.material3.FilterChip(selected = expiredOnly,
-                                onClick = { expiredOnly = true; completedOnly = false; pendingOnly = false }, label = { Text("过期") })
-                        }
-                    }
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.FilterChip(selected = !completedOnly && !expiredOnly,
+                        onClick = { completedOnly = false; expiredOnly = false }, label = { Text("全部记录") })
+                    androidx.compose.material3.FilterChip(selected = completedOnly,
+                        onClick = { completedOnly = true; expiredOnly = false }, label = { Text("已取 ${completedHistory.size}") })
+                    androidx.compose.material3.FilterChip(selected = expiredOnly,
+                        onClick = { expiredOnly = true; completedOnly = false }, label = { Text("过期") })
                 }
             }
             // FilterChips
             item {
-                FilterChipRow(currentFilter = typeFilter, onFilterChange = { typeFilter = it; if (it == "coupon") pendingOnly = false })
+                FilterChipRow(currentFilter = typeFilter, onFilterChange = { typeFilter = it })
             }
 
             // 分组方式切换（按时间 / 按地址聚合）
@@ -499,7 +482,7 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(if (completedOnly) "暂无已取记录" else if (expiredOnly) "暂无过期记录" else if (pendingOnly) "暂无待取记录" else "暂无记录",
+                            Text(if (completedOnly) "暂无已取记录" else if (expiredOnly) "暂无过期记录" else "暂无记录",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -512,7 +495,7 @@ fun HomeScreen(
                 addressGroups.forEach { (addr, groupItems) ->
                     item(key = "addr_header_$addr") {
                         AddressGroupHeader(address = addr.ifBlank { "未填地址" }, count = groupItems.size,
-                            onDoneAll = if (pendingOnly && addr.isNotBlank()) ({ confirmGroup = groupItems.toList() }) else null)
+                            onDoneAll = if (!completedOnly && addr.isNotBlank() && groupItems.any { it.isActive }) ({ confirmGroup = groupItems.filter { it.isActive } }) else null)
                     }
                     items(groupItems, key = { it.id }) { cardItem ->
                         CodeHistoryCard(

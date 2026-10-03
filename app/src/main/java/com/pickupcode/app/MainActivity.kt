@@ -239,13 +239,16 @@ class MainActivity : ComponentActivity() {
                     lifecycleScope.launch(Dispatchers.IO) {
                         try {
                             item?.let {
-                                db.repository.markDone(it.id)
-                                com.pickupcode.app.notification.CodeNotificationManager.dismissRecord(this@MainActivity, it)
+                                if (it.isActive) {
+                                    db.repository.markDone(it.id)
+                                    com.pickupcode.app.notification.CodeNotificationManager.dismissRecord(this@MainActivity, it)
+                                } else com.pickupcode.app.service.CodeCompletion.restore(this@MainActivity, db.repository, it.id)
                             }
+                            kotlinx.coroutines.withContext(Dispatchers.Main) { onBack() }
                         } catch (e: Exception) {
                             Log.e("MainActivity", "标记已取失败", e)
                         }
-                    }.invokeOnCompletion { onBack() }
+                    }
                 }
             )
         } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

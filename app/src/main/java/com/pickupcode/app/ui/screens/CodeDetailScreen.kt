@@ -390,15 +390,15 @@ fun CodeDetailScreen(
                 }
                 if (onMarkDone != null) {
                     Button(onClick = {
-                        confirmAll()
+                        if (item.isActive) confirmAll()
                         // C2: 标记已取时把取件地址登记为常用取件点（IO 线程写盘，避免主线程同步 IO）
-                        if (item.pickupAddress.isNotBlank()) {
+                        if (item.isActive && item.pickupAddress.isNotBlank()) {
                             scope.launch(Dispatchers.IO) { CommonStationStore.registerPickupPoint(ctx, item.pickupAddress) }
                         }
                         onMarkDone(item.id)
                     }, modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8DC0E0), contentColor = Color.White)) {
-                        IconText(R.drawable.ic_package, "标记已取", iconSize = 16.dp,
+                        IconText(R.drawable.ic_package, if (item.isActive) "标记已取" else "恢复未取", iconSize = 16.dp,
                             color = Color.White, iconTint = Color.White)
                     }
                 }

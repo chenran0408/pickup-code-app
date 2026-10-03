@@ -75,7 +75,7 @@ fun TrashScreen(onBack: () -> Unit) {
                 .padding(padding)
         ) {
             Text(
-                "已取/已删除的记录在此保留24小时",
+                "回收站记录保留24小时，已取历史在主页查看",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier

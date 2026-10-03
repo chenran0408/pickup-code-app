@@ -197,7 +197,7 @@ fun SettingsScreen(
             SavedAddressSection(onSavedAddressClick)
             LearningStatsSection(sc, onStatsClick)
             AppearanceSection(sc)
-            DataToolsSection()
+            RecognitionFeedbackSection()
             AboutSection(sc)
         }
     }
