@@ -18,8 +18,8 @@ object HomeGrouping {
      * 组内顺序保持原列表顺序（组内按时间先后）。
      */
     fun byAddress(items: List<CodeHistory>): List<Pair<String, List<CodeHistory>>> =
-        items.groupBy { it.pickupAddress.trim().ifBlank { "" } }
+        items.groupBy { com.pickupcode.app.data.AddressNormalizer.key(it.pickupAddress) }
             .entries
             .sortedWith(compareBy({ it.key.isEmpty() }, { -it.value.size }))
-            .map { it.key to it.value }
+            .map { entry -> entry.value.first().pickupAddress.trim().trimEnd('。', '.', '，', ',', '；', ';') to entry.value }
 }

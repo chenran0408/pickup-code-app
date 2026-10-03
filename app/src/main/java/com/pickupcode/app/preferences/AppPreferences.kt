@@ -155,6 +155,39 @@ object AppPreferences {
         }
     }
 
+    /** 备份仅包含本地行为设置，网络配置与密钥留在当前设备。 */
+    fun localBackup(s: Settings): org.json.JSONObject = org.json.JSONObject()
+        .put("confidenceThreshold", s.confidenceThreshold.toDouble()).put("darkMode", s.darkMode)
+        .put("enableFoodCodes", s.enableFoodCodes).put("enableParcelCodes", s.enableParcelCodes)
+        .put("enableCouponCodes", s.enableCouponCodes).put("enableIntentReceive", s.enableIntentReceive)
+        .put("enableShareDetection", s.enableShareDetection).put("enableExpiryRemind", s.enableExpiryRemind)
+        .put("enableSmsReceive", s.enableSmsReceive).put("enableSmsNotifications", s.enableSmsNotifications)
+        .put("enableWechatNotifications", s.enableWechatNotifications)
+        .put("hideAccessibilityCard", s.hideAccessibilityCard).put("hideGuideCard", s.hideGuideCard)
+
+    suspend fun restoreLocalBackup(context: Context, json: org.json.JSONObject) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_CONFIDENCE_THRESHOLD] = json.optDouble("confidenceThreshold", 0.5).toFloat()
+            prefs[KEY_DARK_MODE] = json.optString("darkMode", "system")
+            fun bool(name: String, key: androidx.datastore.preferences.core.Preferences.Key<Boolean>, fallback: Boolean) {
+                prefs[key] = json.optBoolean(name, fallback)
+            }
+            bool("enableFoodCodes", KEY_ENABLE_FOOD, true)
+            bool("enableParcelCodes", KEY_ENABLE_PARCEL, true)
+            bool("enableCouponCodes", KEY_ENABLE_COUPON, true)
+            bool("enableIntentReceive", KEY_ENABLE_INTENT_RECEIVE, true)
+            bool("enableShareDetection", KEY_ENABLE_SHARE_DETECTION, true)
+            bool("enableExpiryRemind", KEY_ENABLE_EXPIRY_REMIND, true)
+            bool("hideAccessibilityCard", KEY_HIDE_ACCESSIBILITY_CARD, false)
+            bool("hideGuideCard", KEY_HIDE_GUIDE_CARD, false)
+            val access = com.pickupcode.app.service.SmsNotificationListener.hasAccess(context)
+            prefs[KEY_ENABLE_SMS_NOTIFICATIONS] = access && json.optBoolean("enableSmsNotifications", false)
+            prefs[KEY_ENABLE_WECHAT_NOTIFICATIONS] = access && json.optBoolean("enableWechatNotifications", false)
+            prefs[KEY_ENABLE_SMS_RECEIVE] = androidx.core.content.ContextCompat.checkSelfPermission(context,
+                android.Manifest.permission.RECEIVE_SMS) == android.content.pm.PackageManager.PERMISSION_GRANTED && json.optBoolean("enableSmsReceive", false)
+        }
+    }
+
     /** 到期提醒开关（供入库管线排程前检查）。 */
     suspend fun isExpiryRemindEnabled(context: Context): Boolean =
         context.dataStore.data.first()[KEY_ENABLE_EXPIRY_REMIND] ?: true

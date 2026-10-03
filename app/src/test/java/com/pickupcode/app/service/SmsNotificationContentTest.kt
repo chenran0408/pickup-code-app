@@ -4,6 +4,13 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class SmsNotificationContentTest {
+    @Test fun `ordinary chats tracking notices and OTP do not provide pickup context`() {
+        assertFalse(SmsNotificationContent.hasPickupContext("明天见，会议编号607284"))
+        assertFalse(SmsNotificationContent.hasPickupContext("登录验证码607284，请勿泄露"))
+        assertFalse(SmsNotificationContent.hasPickupContext("运单号435228469827702，物流正在运输"))
+        assertTrue(SmsNotificationContent.hasPickupContext("凭7-3-5268到青禾村24排4号取件"))
+        assertTrue(SmsNotificationContent.hasPickupContext("取餐码A12，请到前台取餐"))
+    }
     @Test fun `only default SMS application non summary notices are accepted`() {
         assertTrue(SmsNotificationContent.acceptPackage("com.android.mms", "com.android.mms", false))
         assertFalse(SmsNotificationContent.acceptPackage("com.bank", "com.android.mms", false))

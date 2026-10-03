@@ -27,5 +27,6 @@ data class CodeHistory(
     @ColumnInfo(defaultValue = "'local'") val recognitionOrigin: String = "local",
     @ColumnInfo(defaultValue = "'local'") val addressOrigin: String = "local",
     @ColumnInfo(defaultValue = "''") val suggestedAddress: String = "",
+    @ColumnInfo(defaultValue = "''") val archiveKind: String = "", // done=已取历史；deleted=回收站；空=旧版归档
     val expiryTime: Long = 0  // 到期提醒时刻 ms；0=无需提醒（取餐码/券码恒为 0）（DB v6）
 )

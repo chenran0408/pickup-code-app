@@ -21,6 +21,9 @@ class HomeViewModel(private val repo: CodeRepository) : ViewModel() {
     val activeHistory: StateFlow<List<CodeHistory>> = repo.observeActive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val completedHistory: StateFlow<List<CodeHistory>> = repo.observeCompleted()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val trashHistory: StateFlow<List<CodeHistory>> = repo.observeTrash()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -87,6 +90,31 @@ class HomeViewModel(private val repo: CodeRepository) : ViewModel() {
             } catch (e: Exception) {
                 onError("撤销失败，请在回收站恢复")
             }
+        }
+    }
+
+    fun delete(item: CodeHistory, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                kotlinx.coroutines.withContext(Dispatchers.IO) { repo.moveToTrash(item.id); cancelNotifications(item) }
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { onError("删除失败，请重试") }
+        }
+    }
+
+    fun restoreCompleted(item: CodeHistory, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    repo.restore(item.id)
+                    val ctx = com.pickupcode.app.App.instance
+                    if (item.expiryTime > System.currentTimeMillis() && com.pickupcode.app.preferences.AppPreferences.isExpiryRemindEnabled(ctx)) {
+                        com.pickupcode.app.notification.CodeNotificationManager.scheduleExpiryReminder(ctx, item.code,
+                            com.pickupcode.app.extractor.CodeExtractor.CodeType.valueOf(item.type), item.source, item.expiryTime, historyId = item.id)
+                    }
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { onError("恢复失败，请重试") }
         }
     }
 

@@ -4,6 +4,12 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class RecordMergePolicyTest {
+    @Test fun `same code in different cabinets must remain separate without matching tracking number`() {
+        val a = record().copy(cabinetNumber = "1号柜")
+        val b = a.copy(cabinetNumber = "2号柜")
+        assertFalse(RecordMergePolicy.samePickup(a, b))
+        assertTrue(RecordMergePolicy.samePickup(a.copy(trackingNumber = "synthetic-order"), b.copy(trackingNumber = "synthetic-order")))
+    }
     private fun record(address: String = "东路店", source: String = "茶饮", timestamp: Long = 100_000) =
         CodeHistory(code = "A12", type = "pickup_food", source = source, pickupAddress = address,
             rawTextSnippet = "取餐码A12", timestamp = timestamp)

@@ -34,8 +34,8 @@ android {
         //                  品牌显示优先快递公司、多码同框归属修复、界面图标全面线性化（去 Emoji）
         // ⚠️ 打 tag 时必须让 tag 落在版本号 bump 的提交（或其之后）上 —— v1.0.9 出现过 tag 与产物错位；
         //    release.yml 现已加"APK versionName == tag"校验来拦截这类失误。
-        versionCode = 27
-        versionName = "1.1.1"
+        versionCode = 28
+        versionName = "1.2.0"
     }
 
     signingConfigs {

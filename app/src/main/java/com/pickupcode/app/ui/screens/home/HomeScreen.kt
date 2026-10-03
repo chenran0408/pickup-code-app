@@ -99,6 +99,7 @@ fun HomeScreen(
     // 注册到 ViewModelStore，使 viewModelScope 随 Activity/导航正确 onCleared（勿用 remember 假 VM）
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.Factory(db.repository))
     val activeHistory by vm.activeHistory.collectAsState()
+    val completedHistory by vm.completedHistory.collectAsState()
     val trashHistory by vm.trashHistory.collectAsState()
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -107,12 +108,19 @@ fun HomeScreen(
     var guideExpanded by remember { mutableStateOf(false) }
     // 分组方式：time=按时间 / address=按地址聚合（rememberSaveable：旋转屏幕保持）
     var groupMode by rememberSaveable { mutableStateOf("address") }
+    var completedOnly by rememberSaveable { mutableStateOf(false) }
+    var expiredOnly by rememberSaveable { mutableStateOf(false) }
+    val now by androidx.compose.runtime.produceState(System.currentTimeMillis()) {
+        while (true) { value = System.currentTimeMillis(); kotlinx.coroutines.delay(60_000) }
+    }
     var pendingOnly by rememberSaveable { mutableStateOf(true) }
     var confirmGroup by remember { mutableStateOf<List<CodeHistory>?>(null) }
 
-    val filteredHistory = remember(activeHistory, typeFilter, pendingOnly) {
-        activeHistory.filter { h ->
-            (!pendingOnly || h.type != "coupon") && when (typeFilter) {
+    val filteredHistory = remember(activeHistory, completedHistory, typeFilter, pendingOnly, completedOnly, expiredOnly, now) {
+        (if (completedOnly) completedHistory else if (!pendingOnly && !expiredOnly)
+            (activeHistory + completedHistory).sortedByDescending { it.timestamp } else activeHistory).filter { h ->
+            (!expiredOnly || (h.expiryTime > 0 && h.expiryTime <= now)) &&
+            (!pendingOnly || (h.type != "coupon" && (h.expiryTime == 0L || h.expiryTime > now))) && when (typeFilter) {
                 "food" -> h.type == "pickup_food"
                 "parcel" -> h.type == "pickup_parcel"
                 "coupon" -> h.type == "coupon"
@@ -151,7 +159,7 @@ fun HomeScreen(
                     onSuccess = { batch ->
                         scope.launch {
                             val result = snackbarHostState.showSnackbar(
-                                message = "已移至回收站，24小时后自动删除",
+                                message = "已标记已取，可在已取列表恢复",
                                 actionLabel = "撤销",
                                 duration = SnackbarDuration.Short
                             )
@@ -170,7 +178,7 @@ fun HomeScreen(
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmGroup = null },
             title = { Text("本站全部已取？") },
-            text = { Text("将 ${items.first().pickupAddress} 的 ${items.size} 条记录移至回收站，可撤销。") },
+            text = { Text("将 ${items.first().pickupAddress} 的 ${items.size} 条记录标记为已取，可撤销。") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmGroup = null
@@ -258,7 +266,7 @@ fun HomeScreen(
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
             item {
-                val pending = HomeGrouping.pending(activeHistory)
+                val pending = HomeGrouping.pending(activeHistory.filter { it.expiryTime == 0L || it.expiryTime > now })
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -270,9 +278,15 @@ fun HomeScreen(
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             androidx.compose.material3.FilterChip(selected = pendingOnly,
-                                onClick = { pendingOnly = true; typeFilter = "all" }, label = { Text("待取") })
-                            androidx.compose.material3.FilterChip(selected = !pendingOnly,
-                                onClick = { pendingOnly = false }, label = { Text("全部记录") })
+                                onClick = { pendingOnly = true; completedOnly = false; expiredOnly = false; typeFilter = "all" }, label = { Text("待取") })
+                            androidx.compose.material3.FilterChip(selected = !pendingOnly && !completedOnly && !expiredOnly,
+                                onClick = { pendingOnly = false; completedOnly = false; expiredOnly = false }, label = { Text("全部记录") })
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            androidx.compose.material3.FilterChip(selected = completedOnly,
+                                onClick = { completedOnly = true; expiredOnly = false; pendingOnly = false }, label = { Text("已取 ${completedHistory.size}") })
+                            androidx.compose.material3.FilterChip(selected = expiredOnly,
+                                onClick = { expiredOnly = true; completedOnly = false; pendingOnly = false }, label = { Text("过期") })
                         }
                     }
                 }
@@ -485,7 +499,7 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(if (pendingOnly) "暂无待取记录" else "暂无记录",
+                            Text(if (completedOnly) "暂无已取记录" else if (expiredOnly) "暂无过期记录" else if (pendingOnly) "暂无待取记录" else "暂无记录",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -504,8 +518,8 @@ fun HomeScreen(
                         CodeHistoryCard(
                             item = cardItem,
                             onClick = { onItemClick(cardItem.id) },
-                            onDone = { markAsDone(cardItem) },
-                            onDelete = { markAsDone(cardItem) }
+                            onDone = { if (cardItem.isActive) markAsDone(cardItem) else vm.restoreCompleted(cardItem) { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } } },
+                            onDelete = { vm.delete(cardItem) { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } } }
                         )
                     }
                 }
@@ -519,8 +533,8 @@ fun HomeScreen(
                         CodeHistoryCard(
                             item = item,
                             onClick = { onItemClick(item.id) },
-                            onDone = { markAsDone(item) },
-                            onDelete = { markAsDone(item) }
+                            onDone = { if (item.isActive) markAsDone(item) else vm.restoreCompleted(item) { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } } },
+                            onDelete = { vm.delete(item) { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } } }
                         )
                     }
                 }

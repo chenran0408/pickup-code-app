@@ -19,6 +19,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.Composable
@@ -105,7 +106,11 @@ fun CodeHistoryCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "${item.source} · ${formatTime(item.timestamp)}",
+                    text = "${item.source} · ${formatTime(item.timestamp)}" + when {
+                        !item.isActive && item.archiveKind == "done" -> " · 已取"
+                        item.isActive && item.expiryTime > 0 && item.expiryTime <= System.currentTimeMillis() -> " · 已过期"
+                        else -> ""
+                    },
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -150,8 +155,8 @@ fun CodeHistoryCard(
             // 操作按钮
             IconButton(onClick = onDone, modifier = Modifier.size(40.dp)) {
                 Icon(
-                    Icons.Default.Check,
-                    contentDescription = "标记已取",
+                    if (item.isActive) Icons.Default.Check else Icons.Default.Add,
+                    contentDescription = if (item.isActive) "标记已取" else "恢复待取",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )

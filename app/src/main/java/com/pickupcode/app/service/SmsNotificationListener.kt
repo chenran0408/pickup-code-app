@@ -29,7 +29,18 @@ class SmsNotificationListener : NotificationListenerService() {
     private val recent = LinkedHashMap<String, String>()
 
     override fun onListenerConnected() {
+        NotificationRecognitionStatus.connected(true)
         Log.d(TAG, "取件码通知监听已连接，默认短信应用=${Telephony.Sms.getDefaultSmsPackage(this).orEmpty()}")
+    }
+
+    override fun onListenerDisconnected() {
+        NotificationRecognitionStatus.connected(false)
+        if (hasAccess(this)) requestRebind(ComponentName(this, SmsNotificationListener::class.java))
+    }
+
+    override fun onDestroy() {
+        NotificationRecognitionStatus.connected(false)
+        super.onDestroy()
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
@@ -59,12 +70,13 @@ class SmsNotificationListener : NotificationListenerService() {
                     val body = SmsNotificationContent.body(extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
                         extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString(),
                         extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.map { it.toString() }.orEmpty(), messages)
+                    NotificationRecognitionStatus.received(isWechat, body.isNotBlank())
                     if (body.isBlank()) { Log.d(TAG, "$sourceName 无可读的收到消息正文"); return@withLock }
                     if (com.pickupcode.app.util.SensitivePageGuard.isIdentityCodePage(body)) return@withLock
                     val digest = MessageDigest.getInstance("SHA-256").digest(body.toByteArray())
                         .joinToString("") { "%02x".format(it) }
                     if (recent[sbn.key] == digest) return@withLock
-                    if (CodeExtractor.isFinancialNoise(body)) return@withLock
+                    if (CodeExtractor.isFinancialNoise(body) || !SmsNotificationContent.hasPickupContext(body)) return@withLock
                     val completed = withTimeoutOrNull(15000) {
                         val lines = body.lines().filter { it.isNotBlank() }.map { OCREngine.TextLine(it, null, 1f) }
                         val codes = CodeExtractor.extract(lines, context = applicationContext, source = sourceTag)
@@ -80,6 +92,7 @@ class SmsNotificationListener : NotificationListenerService() {
                         for (record in saved.filterNot { it.existed }) RecognitionPipeline.notifySaved(
                             applicationContext, { repo.countDuplicateGroups() }, record.code, record.type,
                             record.source, record.id, false)
+                        NotificationRecognitionStatus.received(isWechat, true, saved.size)
                         Log.d(TAG, "$sourceName 识别完成，候选=${codes.size}，保存=${saved.size}")
                         true
                     }

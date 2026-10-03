@@ -39,6 +39,11 @@ class CodeRepository(private val dao: CodeHistoryDao) {
 
     fun observeActive(): Flow<List<CodeHistory>> = dao.getActiveFlow()
 
+    fun observeCompleted(): Flow<List<CodeHistory>> = dao.getCompletedFlow()
+    suspend fun getAll(): List<CodeHistory> = dao.getAll()
+    suspend fun importRecords(records: List<CodeHistory>): Int = screenshotMutex.withLock { dao.importRecords(records) }
+    suspend fun moveToTrash(id: Long) = dao.moveToTrash(id, System.currentTimeMillis())
+
     fun observeTrash(): Flow<List<CodeHistory>> = dao.getTrashFlow()
 
     suspend fun countDuplicateGroups(): Int = dao.countDuplicateGroups()

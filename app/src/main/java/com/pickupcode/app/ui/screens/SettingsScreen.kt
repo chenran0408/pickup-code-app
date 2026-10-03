@@ -197,6 +197,7 @@ fun SettingsScreen(
             SavedAddressSection(onSavedAddressClick)
             LearningStatsSection(sc, onStatsClick)
             AppearanceSection(sc)
+            DataToolsSection()
             AboutSection(sc)
         }
     }
@@ -410,6 +411,7 @@ private enum class NotifStatus { OK, NEED_PERMISSION, DISABLED, CHANNEL_SILENT }
 @Composable
 private fun SmsNotificationSettings(sc: SettingsCtx) {
     val owner = LocalLifecycleOwner.current
+    val listenerState by com.pickupcode.app.service.NotificationRecognitionStatus.state.collectAsState()
     var granted by remember { mutableStateOf(com.pickupcode.app.service.SmsNotificationListener.hasAccess(sc.ctx)) }
     DisposableEffect(owner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -434,7 +436,9 @@ private fun SmsNotificationSettings(sc: SettingsCtx) {
         sub = when {
             !sc.s.enableSmsNotifications -> "仅识别默认短信应用的通知正文，在本地处理"
             !granted -> "等待通知访问授权"
-            else -> "已开启；需短信通知显示正文"
+            !listenerState.connected -> "已授权，等待监听连接"
+            listenerState.sms?.readable == false -> "最近通知没有正文，请开启短信通知详情"
+            else -> "监听正常；需短信通知显示正文"
         }, checked = sc.s.enableSmsNotifications, onChange = { enabled ->
             sc.saveRun { AppPreferences.setEnableSmsNotifications(sc.ctx, enabled) }
             if (enabled && !granted) openAccess()
@@ -443,11 +447,16 @@ private fun SmsNotificationSettings(sc: SettingsCtx) {
         sub = when {
             !sc.s.enableWechatNotifications -> "仅识别微信新通知正文，本地处理取件码和取餐码"
             !granted -> "等待通知访问授权"
-            else -> "已开启；微信需显示消息详情，聊天前台或免打扰无通知时无法识别"
+            !listenerState.connected -> "已授权，等待监听连接"
+            listenerState.wechat?.readable == false -> "最近通知没有正文，请开启微信消息详情"
+            else -> "监听正常；聊天前台或免打扰无通知时无法识别"
         }, checked = sc.s.enableWechatNotifications, onChange = { enabled ->
             sc.saveRun { AppPreferences.setEnableWechatNotifications(sc.ctx, enabled) }
             if (enabled && !granted) openAccess()
         })
+    if (granted && !listenerState.connected && (sc.s.enableSmsNotifications || sc.s.enableWechatNotifications)) TextButton(onClick = {
+        android.service.notification.NotificationListenerService.requestRebind(android.content.ComponentName(sc.ctx, com.pickupcode.app.service.SmsNotificationListener::class.java))
+    }) { Text("重新连接监听") }
     if (sc.s.enableSmsNotifications || sc.s.enableWechatNotifications) TextButton(onClick = { openAccess() }) {
         Text(if (granted) "管理通知访问权限" else "开启通知访问权限")
     }
@@ -779,11 +788,11 @@ private fun AboutSection(sc: SettingsCtx) {    SettingsSectionCard(title = "关�
             Spacer(Modifier.height(4.dp))
             val uriHandler = LocalUriHandler.current
             Text(
-                "GitHub: https://github.com/zixij644-elaborate/pickup-code-app",
+                "GitHub: https://github.com/chenran0408/pickup-code-app",
                 style = MaterialTheme.typography.bodySmall,
                 color = ValBlue,
                 modifier = Modifier
-                    .clickable { uriHandler.openUri("https://github.com/zixij644-elaborate/pickup-code-app") }
+                    .clickable { uriHandler.openUri("https://github.com/chenran0408/pickup-code-app") }
                     .padding(vertical = 2.dp)
             )
             // 识别调试面板：仅 DEBUG 构建显示（生产裁剪）
@@ -996,7 +1005,7 @@ private fun Kuaidi100HelpSection() {
 private suspend fun checkUpdate(): String = withContext(Dispatchers.IO) {
     var resp: java.net.HttpURLConnection? = null
     try {
-        resp = java.net.URL("https://api.github.com/repos/zixij644-elaborate/pickup-code-app/releases/latest")
+        resp = java.net.URL("https://api.github.com/repos/chenran0408/pickup-code-app/releases/latest")
             .openConnection() as java.net.HttpURLConnection
         resp.requestMethod = "GET"; resp.setRequestProperty("Accept", "application/vnd.github.v3+json")
         resp.setRequestProperty("User-Agent", "pickup-code-app-checkupdate")

@@ -9,6 +9,8 @@ import java.nio.file.Files
 class CodeRepositoryTest {
     private class MemoryDao : CodeHistoryDao by unsupportedDao() {
         val rows = linkedMapOf<Long, CodeHistory>()
+        override suspend fun getAll() = rows.values.toList()
+        override suspend fun importRecords(records: List<CodeHistory>) = super<CodeHistoryDao>.importRecords(records)
         override suspend fun getByIdSuspend(id: Long) = rows[id]
         override suspend fun mergeCandidates(code: String, type: String) = rows.values.filter { it.isActive && it.code == code && it.type == type }
         override suspend fun screenshotReferences(path: String) = rows.values.count { it.screenshotPath == path }
@@ -41,6 +43,17 @@ class CodeRepositoryTest {
         private fun unsupportedDao() = Proxy.newProxyInstance(CodeHistoryDao::class.java.classLoader, arrayOf(CodeHistoryDao::class.java)) { _, method, _ ->
             error("Unexpected DAO call: ${method.name}")
         } as CodeHistoryDao
+    }
+
+    @Test fun `backup imports append records and repeat imports do not overwrite edits or duplicate records`() = runBlocking {
+        val dao = MemoryDao(); val repo = CodeRepository(dao)
+        val current = record("3-7-4162"); repo.save(current)
+        val completed = record("9-4-1526").copy(isActive = false, doneAt = 100, archiveKind = "done", userEditedFields = 4)
+        assertEquals(1, repo.importRecords(listOf(current, completed)))
+        assertEquals(0, repo.importRecords(listOf(current, completed)))
+        assertEquals(2, dao.rows.size)
+        assertEquals("done", dao.rows.values.single { !it.isActive }.archiveKind)
+        assertEquals(4, dao.rows.values.single { !it.isActive }.userEditedFields)
     }
 
     private fun record(code: String, address: String = "长兴路店", screenshot: String = "") =

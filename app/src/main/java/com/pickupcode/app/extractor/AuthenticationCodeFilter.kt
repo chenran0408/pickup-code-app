@@ -2,6 +2,7 @@ package com.pickupcode.app.extractor
 
 /** 验证码属于账户安全消息，不作为取件码。所有自动提取及入库路径共用此判断。 */
 object AuthenticationCodeFilter {
+    private val pickupGap = Regex("[\\s:：为是]*")
     private val authenticationLabel = Regex(
         "验证码|校验码|动态(?:密码|口令)|一次性(?:密码|口令)|验证代码|" +
             "\\b(?:OTP|verification\\s+code|security\\s+code|login\\s+code|one[ -]time\\s+(?:password|code))\\b",
@@ -27,7 +28,7 @@ object AuthenticationCodeFilter {
             val before = normalized.substring(maxOf(0, match.range.first - 120), match.range.first)
             val auth = authenticationLabel.findAll(before).lastOrNull()
             val pickup = precedingPickupLabel.findAll(before).lastOrNull()
-            val directPickup = pickup != null && Regex("[\\s:：为是]*")
+            val directPickup = pickup != null && pickupGap
                 .matches(before.substring(pickup.range.last + 1))
             val followsAuth = auth != null && (pickup == null || auth.range.first > pickup.range.first)
             val after = normalized.substring(match.range.last + 1, minOf(normalized.length, match.range.last + 41))

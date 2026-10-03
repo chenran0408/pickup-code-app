@@ -10,8 +10,29 @@ interface CodeHistoryDao {
     fun getActiveFlow(): Flow<List<CodeHistory>>
 
     /** 回收站记录 */
-    @Query("SELECT * FROM code_history WHERE isActive = 0 ORDER BY doneAt DESC")
+    @Query("SELECT * FROM code_history WHERE isActive = 0 AND archiveKind != 'done' ORDER BY doneAt DESC")
     fun getTrashFlow(): Flow<List<CodeHistory>>
+
+    @Query("SELECT * FROM code_history WHERE isActive = 0 AND archiveKind = 'done' ORDER BY doneAt DESC")
+    fun getCompletedFlow(): Flow<List<CodeHistory>>
+
+    @Query("SELECT * FROM code_history ORDER BY timestamp DESC")
+    suspend fun getAll(): List<CodeHistory>
+
+    @Query("UPDATE code_history SET isActive = 0, doneAt = :doneAt, archiveKind = 'deleted' WHERE id = :id")
+    suspend fun moveToTrash(id: Long, doneAt: Long)
+
+    /** 恢复采用追加与精确去重；整个记录批次失败时回滚，不覆盖当前记录。 */
+    @Transaction
+    suspend fun importRecords(records: List<CodeHistory>): Int {
+        val existing = getAll().map { it.copy(id = 0, screenshotPath = "") }.toMutableSet()
+        var inserted = 0
+        records.forEach { record ->
+            val portable = record.copy(id = 0, screenshotPath = "")
+            if (existing.add(portable)) { insert(portable); inserted++ }
+        }
+        return inserted
+    }
 
     @Query("SELECT * FROM code_history WHERE id = :id")
     fun getById(id: Long): Flow<CodeHistory?>
@@ -41,7 +62,7 @@ interface CodeHistoryDao {
     suspend fun update(history: CodeHistory)
 
     /** 标记已取（移入回收站）：isActive=0 + doneAt=now。注：名含 Done 但语义是“归档/移入回收站”，非物理删除。 */
-    @Query("UPDATE code_history SET isActive = 0, doneAt = :doneAt WHERE id = :id")
+    @Query("UPDATE code_history SET isActive = 0, doneAt = :doneAt, archiveKind = 'done' WHERE id = :id AND isActive = 1")
     suspend fun markDone(id: Long, doneAt: Long = System.currentTimeMillis())
 
     /** M1: 定向只更新 geo 校验字段，避免异步回调用旧快照覆盖用户对 code/source/address 的编辑。 */
@@ -71,10 +92,10 @@ interface CodeHistoryDao {
     @Query("SELECT COUNT(*) FROM code_history WHERE screenshotPath = :path")
     suspend fun screenshotReferences(path: String): Int
 
-    @Query("UPDATE code_history SET isActive = 0, doneAt = :doneAt WHERE id IN (:ids) AND isActive = 1")
+    @Query("UPDATE code_history SET isActive = 0, doneAt = :doneAt, archiveKind = 'done' WHERE id IN (:ids) AND isActive = 1")
     suspend fun markDoneByIds(ids: List<Long>, doneAt: Long)
 
-    @Query("UPDATE code_history SET isActive = 1, doneAt = 0 WHERE id IN (:ids) AND isActive = 0 AND doneAt = :doneAt")
+    @Query("UPDATE code_history SET isActive = 1, doneAt = 0, archiveKind = '' WHERE id IN (:ids) AND isActive = 0 AND archiveKind = 'done' AND doneAt = :doneAt")
     suspend fun restoreBatch(ids: List<Long>, doneAt: Long)
 
     @Query("SELECT * FROM code_history WHERE id IN (:ids) AND isActive = 1")
@@ -87,19 +108,19 @@ interface CodeHistoryDao {
     suspend fun fillAddressIfBlank(id: Long, address: String)
 
     /** 批量归档：同 code+type 的所有活跃记录标记为已取（一次取件对应多份同码记录全部归档）。 */
-    @Query("UPDATE code_history SET isActive = 0, doneAt = :doneAt WHERE code = :code AND type = :type AND isActive = 1")
+    @Query("UPDATE code_history SET isActive = 0, doneAt = :doneAt, archiveKind = 'done' WHERE code = :code AND type = :type AND isActive = 1")
     suspend fun markDoneByCodeAndType(code: String, type: String, doneAt: Long = System.currentTimeMillis())
 
     /** 从回收站恢复 */
-    @Query("UPDATE code_history SET isActive = 1, doneAt = 0 WHERE id = :id")
+    @Query("UPDATE code_history SET isActive = 1, doneAt = 0, archiveKind = '' WHERE id = :id")
     suspend fun restore(id: Long)
 
     /** 清除过期回收站记录（超过 retentionMs） */
-    @Query("DELETE FROM code_history WHERE isActive = 0 AND doneAt > 0 AND doneAt < :before")
+    @Query("DELETE FROM code_history WHERE isActive = 0 AND archiveKind != 'done' AND doneAt > 0 AND doneAt < :before")
     suspend fun deleteExpiredTrash(before: Long)
 
     /** 取过期回收站记录的截图路径（用于在删除 DB 行前先清理截图文件）。 */
-    @Query("SELECT screenshotPath FROM code_history WHERE isActive = 0 AND doneAt > 0 AND doneAt < :before AND screenshotPath != ''")
+    @Query("SELECT screenshotPath FROM code_history WHERE isActive = 0 AND archiveKind != 'done' AND doneAt > 0 AND doneAt < :before AND screenshotPath != ''")
     suspend fun getExpiredScreenshots(before: Long): List<String>
 
     // ---- 截图治理（代码检查 3-3 / 3-14：孤儿文件、无 TTL）----
@@ -179,7 +200,7 @@ interface CodeHistoryDao {
     }
 }
 
-@Database(entities = [CodeHistory::class], version = 8, exportSchema = true)
+@Database(entities = [CodeHistory::class], version = 9, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun codeHistoryDao(): CodeHistoryDao
     val repository: CodeRepository by lazy { CodeRepository(codeHistoryDao()) }
@@ -275,6 +296,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE code_history ADD COLUMN archiveKind TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -285,7 +312,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "pickup_code_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     // 不再使用 fallbackToDestructiveMigration：它会静默删库重建，导致用户取件记录无提示丢失。
                     // 已开 exportSchema=true（schemaLocation 见 build.gradle.kts）让 Room 校验迁移，
                     // 未来迁移写错时应升级失败报错，而不是清空核心数据。

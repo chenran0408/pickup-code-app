@@ -18,8 +18,10 @@ object RecordMergePolicy {
         val age = kotlin.math.abs(fresh.timestamp - old.timestamp)
         val maxAge = if (fresh.type == "pickup_food") 4 * 60 * 60_000L else 7 * 24 * 60 * 60_000L
         if (age > maxAge) return false
-        val a = normalized(old.pickupAddress)
-        val b = normalized(fresh.pickupAddress)
+        if (old.cabinetNumber.isNotBlank() && fresh.cabinetNumber.isNotBlank() &&
+            normalized(old.cabinetNumber) != normalized(fresh.cabinetNumber)) return false
+        val a = AddressNormalizer.key(old.pickupAddress)
+        val b = AddressNormalizer.key(fresh.pickupAddress)
         if (a.isNotEmpty() && b.isNotEmpty() && a != b) return false
         val oldSource = knownSource(old.source)
         val newSource = knownSource(fresh.source)
