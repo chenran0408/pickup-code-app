@@ -34,6 +34,7 @@ android {
         //                  品牌显示优先快递公司、多码同框归属修复、界面图标全面线性化（去 Emoji）
         // ⚠️ 打 tag 时必须让 tag 落在版本号 bump 的提交（或其之后）上 —— v1.0.9 出现过 tag 与产物错位；
         //    release.yml 现已加"APK versionName == tag"校验来拦截这类失误。
+        //   28 / 1.2.0  —— 短信/微信通知识别、验证码排除、已取历史、首页快捷操作和 arm64 压缩发布
         versionCode = 28
         versionName = "1.2.0"
     }

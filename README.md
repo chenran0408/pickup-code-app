@@ -3,11 +3,11 @@
  > 自动识别截屏或分享图片中的取餐码、取件码和券码，通知提醒 + 一键标记已取。数据全部留在本机。
 
 [![Build and Test](https://github.com/chenran0408/pickup-code-app/actions/workflows/ci.yml/badge.svg)](https://github.com/chenran0408/pickup-code-app/actions/workflows/ci.yml)
-[![Downloads](https://img.shields.io/github/downloads/zixij644-elaborate/pickup-code-app/total)](https://github.com/chenran0408/pickup-code-app/releases)
-[![Latest release](https://img.shields.io/github/v/release/zixij644-elaborate/pickup-code-app)](https://github.com/chenran0408/pickup-code-app/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/chenran0408/pickup-code-app/total)](https://github.com/chenran0408/pickup-code-app/releases)
+[![Latest release](https://img.shields.io/github/v/release/chenran0408/pickup-code-app)](https://github.com/chenran0408/pickup-code-app/releases/latest)
 
 <div align="center">
-  <img src="screenshots/home.jpg" width="30%" alt="主页：取件码/取餐码列表与筛选" />
+  <img src="screenshots/home-1.2.0.png" width="30%" alt="主页：记录筛选与底部三平台快捷入口" />
   <img src="screenshots/detail.jpg" width="30%" alt="详情页：标题栏可一键跳转身份码" />
   <img src="screenshots/identity-code.jpg" width="30%" alt="身份码：淘宝/菜鸟/拼多多一键打开" />
   <img src="screenshots/settings.jpg" width="30%" alt="设置：识别与验证服务逐项可开关" />
@@ -54,7 +54,7 @@
 - 主页默认显示全部记录（含券码和已取历史），可筛选已取、过期，按时间或地址分组。
 - 已填写地址的分组支持「本站已取」，确认后整组归档，可通过提示条撤销。
 - 批量已取只操作本组可见的活跃记录；已取记录可恢复，不再随回收站自动删除。
-- 「淘宝码」「菜鸟码」「拼多多码」三个大按钮固定在主页标题栏下方，直接打开对应平台，滚动清单时也可使用；详情页提供同样的入口。
+- 「淘宝码」「菜鸟码」「拼多多码」三个紧凑入口固定在主页底部，直接打开对应平台，滚动清单时也可使用；详情页提供同样的入口。
 
 ### 数据管理
 - **上下文去重**：结合订单/运单、地址、来源和时间合并；不同站点的同码保留，已取操作按记录执行
@@ -86,7 +86,7 @@
 |---|---|---|
 | app-arm64-v8a-release.apk | 大部分新手机（含 vivo/小米等 arm64 机型） | [下载](https://github.com/chenran0408/pickup-code-app/releases/latest/download/app-arm64-v8a-release.apk) |
 
- > 从 1.2.0 起只提供 arm64-v8a 包。发布构建启用 R8、资源收缩和原生库压缩，保留离线 OCR / 条码识别。未正式签名发布的版本请使用本地测试产物。
+ > 从 1.2.0 起只提供 arm64-v8a 包。发布构建启用 R8、资源收缩和原生库压缩，保留离线 OCR / 条码识别。本 fork 使用独立正式签名，上游包和调试测试包在标准 Android 设备上不能直接覆盖升级；不要卸载旧包来绕过签名校验，以免丢失记录。
 
 ## 快速开始
 

@@ -3,7 +3,7 @@ name: Release
 # 打 tag（v*）即自动构建并发布 —— 从流程上消灭 v1.0.9 那种
 # "tag 指向的提交 ≠ 版本号提交，结果构建出来版本号对不上" 的事故。
 #
-# 签名：仓库配了下面 4 个 secret 就出**签名包**，没配就出**未签名包**（构建不会失败）：
+# 签名：仓库配置下面 4 个 secret 才发布签名包，缺失时只构建 unsigned，不发布：
 #   PICKUP_STORE_BASE64     keystore 文件的 base64（`base64 -w0 pickup.keystore`）
 #   PICKUP_STORE_PASSWORD   storePassword
 #   PICKUP_KEY_ALIAS        keyAlias
@@ -55,6 +55,12 @@ jobs:
             echo "SIGNED=0" >> "$GITHUB_ENV"
             echo "::warning::未配置签名密钥（PICKUP_STORE_BASE64），本次只出**未签名包**，不会发布 Release"
           fi
+
+      - name: Lint
+        run: ./gradlew lintDebug --no-daemon --max-workers=1 --console=plain
+
+      - name: Check SQLite migrations
+        run: python3 docs/tools/check-migration.py
 
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest --console=plain
@@ -112,6 +118,13 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Preserve R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8-mapping-${{ github.ref_name }}
+          path: app/build/outputs/mapping/release/mapping.txt
+          retention-days: 90
+
       # 只有签名包才发布：未签名 APK 根本无法安装，发出去只会误导用户。
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/') && env.SIGNED == '1'
@@ -120,10 +133,9 @@ jobs:
           files: |
             app/build/outputs/apk/release/app-arm64-v8a-release*.apk
             SHA256SUMS.txt
-          generate_release_notes: true
-          body: |
-            > 请直接从旧版本升级到本版。若你装的是 v1.0.0–v1.0.2 且中间未更新过，
-            > **不要经过 1.0.8 / 1.0.9**（那两个版本对旧数据库会闪退）。
+            docs/performance/results-1.2.0.json
+          body_path: docs/RELEASE_NOTES.md
+          fail_on_unmatched_files: true
 
       - name: Skip notice
         if: startsWith(github.ref, 'refs/tags/') && env.SIGNED != '1'

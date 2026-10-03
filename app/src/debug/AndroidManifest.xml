@@ -12,6 +12,9 @@
         android:maxSdkVersion="32" />
 
     <application>
+        <activity android:name="com.pickupcode.app.performance.PerformanceFixtureActivity"
+            android:exported="true" android:permission="android.permission.DUMP"
+            android:label="Performance Fixture" />
         <activity
             android:name="com.pickupcode.app.corpus.CorpusHarnessActivity"
             android:exported="true"

@@ -1,0 +1,236 @@
+{
+  "method": "ABBA, Release + R8 + resource/native compression, AOT speed, 144 synthetic records",
+  "baseline": {
+    "commit": "407ca98",
+    "sha256": "1f31b9cfa12b0f86e44735345cdf82efe16bd0710e846391724e7dffe765aa60"
+  },
+  "candidate": {
+    "commit": "2faf6eb",
+    "sha256": "eb46818e3167bfe7482e2502b996b151b6e90945d0a017d8ba7902dc8f1e309e"
+  },
+  "device": {
+    "model": "2410DPN6CC",
+    "sdk": "37",
+    "size": "Physical size: 1440x3200",
+    "density": "Physical density: 600"
+  },
+  "blocks": [
+    {
+      "block": 1,
+      "variant": "baseline",
+      "temperatureStartC": 33.2,
+      "startupMs": [
+        115,
+        111,
+        117,
+        117,
+        106
+      ],
+      "scroll": [
+        {
+          "frames": 652,
+          "janky": 0,
+          "jankyLegacy": 10,
+          "p50Ms": 8,
+          "p90Ms": 14,
+          "p95Ms": 16,
+          "p99Ms": 18,
+          "jankPercent": 0.0
+        },
+        {
+          "frames": 646,
+          "janky": 0,
+          "jankyLegacy": 8,
+          "p50Ms": 7,
+          "p90Ms": 15,
+          "p95Ms": 16,
+          "p99Ms": 18,
+          "jankPercent": 0.0
+        },
+        {
+          "frames": 646,
+          "janky": 0,
+          "jankyLegacy": 6,
+          "p50Ms": 7,
+          "p90Ms": 14,
+          "p95Ms": 16,
+          "p99Ms": 18,
+          "jankPercent": 0.0
+        }
+      ],
+      "temperatureEndC": 33.3
+    },
+    {
+      "block": 2,
+      "variant": "candidate",
+      "temperatureStartC": 33.3,
+      "startupMs": [
+        122,
+        121,
+        112,
+        121,
+        112
+      ],
+      "scroll": [
+        {
+          "frames": 644,
+          "janky": 0,
+          "jankyLegacy": 4,
+          "p50Ms": 7,
+          "p90Ms": 15,
+          "p95Ms": 16,
+          "p99Ms": 18,
+          "jankPercent": 0.0
+        },
+        {
+          "frames": 630,
+          "janky": 0,
+          "jankyLegacy": 6,
+          "p50Ms": 7,
+          "p90Ms": 14,
+          "p95Ms": 16,
+          "p99Ms": 18,
+          "jankPercent": 0.0
+        },
+        {
+          "frames": 642,
+          "janky": 0,
+          "jankyLegacy": 6,
+          "p50Ms": 7,
+          "p90Ms": 14,
+          "p95Ms": 17,
+          "p99Ms": 18,
+          "jankPercent": 0.0
+        }
+      ],
+      "temperatureEndC": 33.3
+    },
+    {
+      "block": 3,
+      "variant": "candidate",
+      "temperatureStartC": 33.3,
+      "startupMs": [
+        105,
+        112,
+        125,
+        112,
+        114
+      ],
+      "scroll": [
+        {
+          "frames": 632,
+          "janky": 0,
+          "jankyLegacy": 12,
+          "p50Ms": 9,
+          "p90Ms": 14,
+          "p95Ms": 16,
+          "p99Ms": 19,
+          "jankPercent": 0.0
+        },
+        {
+          "frames": 628,
+          "janky": 0,
+          "jankyLegacy": 8,
+          "p50Ms": 7,
+          "p90Ms": 14,
+          "p95Ms": 16,
+          "p99Ms": 19,
+          "jankPercent": 0.0
+        },
+        {
+          "frames": 634,
+          "janky": 0,
+          "jankyLegacy": 0,
+          "p50Ms": 7,
+          "p90Ms": 14,
+          "p95Ms": 15,
+          "p99Ms": 16,
+          "jankPercent": 0.0
+        }
+      ],
+      "temperatureEndC": 33.5
+    },
+    {
+      "block": 4,
+      "variant": "baseline",
+      "temperatureStartC": 33.5,
+      "startupMs": [
+        108,
+        117,
+        109,
+        111,
+        109
+      ],
+      "scroll": [
+        {
+          "frames": 646,
+          "janky": 0,
+          "jankyLegacy": 2,
+          "p50Ms": 8,
+          "p90Ms": 15,
+          "p95Ms": 16,
+          "p99Ms": 18,
+          "jankPercent": 0.0
+        },
+        {
+          "frames": 652,
+          "janky": 0,
+          "jankyLegacy": 8,
+          "p50Ms": 8,
+          "p90Ms": 15,
+          "p95Ms": 16,
+          "p99Ms": 19,
+          "jankPercent": 0.0
+        },
+        {
+          "frames": 648,
+          "janky": 0,
+          "jankyLegacy": 2,
+          "p50Ms": 8,
+          "p90Ms": 15,
+          "p95Ms": 16,
+          "p99Ms": 18,
+          "jankPercent": 0.0
+        }
+      ],
+      "temperatureEndC": 34.0
+    }
+  ],
+  "summary": {
+    "baseline": {
+      "startupSamples": 10,
+      "startupMedianMs": 111.0,
+      "startupMinMs": 106,
+      "startupMaxMs": 117,
+      "scrollSamples": 6,
+      "scrollFrames": 3890,
+      "jankyFrames": 0,
+      "jankPercent": 0.0,
+      "scrollP95MedianMs": 16.0,
+      "scrollP99MedianMs": 18.0,
+      "legacyJankyFrames": 36,
+      "legacyJankPercent": 0.925
+    },
+    "candidate": {
+      "startupSamples": 10,
+      "startupMedianMs": 113.0,
+      "startupMinMs": 105,
+      "startupMaxMs": 125,
+      "scrollSamples": 6,
+      "scrollFrames": 3810,
+      "jankyFrames": 0,
+      "jankPercent": 0.0,
+      "scrollP95MedianMs": 16.0,
+      "scrollP99MedianMs": 18.0,
+      "legacyJankyFrames": 36,
+      "legacyJankPercent": 0.945
+    }
+  },
+  "limitations": [
+    "进程冷启动首帧计时；文件缓存预热；不代表全部列表加载时间",
+    "单台设备固定AOT speed，约16.63ms帧间隔，不能推广至全部手机",
+    "现代jank计数两版均0，同时保留legacy指标；0不代表绝无卡顿",
+    "首页布局不同，相同手势不等于相同可见内容",
+    "未测首次安装、网络AI或真实短信/微信通知接收"
+  ]
+}
