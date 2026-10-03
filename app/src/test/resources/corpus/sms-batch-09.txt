@@ -1,0 +1,9 @@
+# id: sms-batch-09
+# source: sms
+# screen: 0
+# note: 用户短信批次的同形态脱敏样本
+
+L - - - - - 【圆通快递】凭7-3-5134到青禾村24排4号取尾号3753包裹。
+E code pickup_parcel 7-3-5134
+E codeaddr 7-3-5134 青禾村24排4号
+E codesource 7-3-5134 圆通

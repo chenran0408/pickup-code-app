@@ -142,7 +142,7 @@ object CodeNotificationManager {
         val pendingIntent = launchPendingIntent(context)
 
         val nid = nextNotifyId(context)
-        trackNotifyId(type, code, nid)
+        trackNotifyId(type, historyId?.let { "record:$it" } ?: code, nid)
         // X/滑动删除走 DeleteIntent → NotificationDismissReceiver（与「忽略」按钮一致：仅收起通知，DB 记录保留）
         val deleteIntent = PendingIntent.getBroadcast(context, nid,
             Intent(context, NotificationDismissReceiver::class.java).apply {
@@ -151,6 +151,7 @@ object CodeNotificationManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .addExtras(android.os.Bundle().apply { putLong("history_id", historyId ?: -1) })
             .setContentTitle("$iconLabel $title")
             .setContentText("$source  —  $code")
             .setStyle(NotificationCompat.BigTextStyle()
@@ -193,6 +194,19 @@ object CodeNotificationManager {
         nm.cancel(remindNotifyId(type, code))
     }
 
+    /** 按记录取消，避免同一短码在不同站点互相影响。进程重启后也检查系统通知。 */
+    fun dismissRecord(context: Context, item: com.pickupcode.app.data.CodeHistory) {
+        val type = runCatching { CodeExtractor.CodeType.valueOf(item.type) }.getOrNull() ?: return
+        val key = "record:${item.id}"
+        cancelRemind(context, item.code, type, historyId = item.id)
+        val nm = context.getSystemService(NotificationManager::class.java) ?: return
+        activeNotifyIds.remove("$type:$key")?.forEach { nm.cancel(it) }
+        nm.activeNotifications.filter { it.notification.extras.getLong("history_id", -1) == item.id }
+            .forEach { nm.cancel(it.id) }
+        nm.cancel(dupNotifyId(type, key))
+        nm.cancel(remindNotifyId(type, key))
+    }
+
     fun dismissById(context: Context, id: Int) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         nm.cancel(id)
@@ -215,27 +229,28 @@ object CodeNotificationManager {
 
     /** 稍后提醒：delayMs 毫秒后（默认 1 小时）重新推一条提醒通知。 */
     fun remindLater(context: Context, code: String, type: CodeExtractor.CodeType,
-                    source: String, delayMs: Long = 60L * 60 * 1000) {
-        scheduleRemind(context, code, type, source, delayMs, KIND_LATER)
+                    source: String, delayMs: Long = 60L * 60 * 1000, historyId: Long? = null) {
+        scheduleRemind(context, code, type, source, delayMs, KIND_LATER, historyId)
     }
 
     /** 到期提醒：expiryAt 时刻（或立即，若已过）推一条"可能快过期"提醒（DB v6）。 */
     fun scheduleExpiryReminder(context: Context, code: String, type: CodeExtractor.CodeType,
-                               source: String, expiryAt: Long) {
+                               source: String, expiryAt: Long, historyId: Long? = null) {
         val delayMs = (expiryAt - System.currentTimeMillis()).coerceAtLeast(1_000L)
-        scheduleRemind(context, code, type, source, delayMs, KIND_EXPIRY)
+        scheduleRemind(context, code, type, source, delayMs, KIND_EXPIRY, historyId)
     }
 
     private fun scheduleRemind(context: Context, code: String, type: CodeExtractor.CodeType,
-                               source: String, delayMs: Long, kind: String) {
+                               source: String, delayMs: Long, kind: String, historyId: Long? = null) {
         val alarm = context.getSystemService(AlarmManager::class.java) ?: return
         val intent = Intent(context, RemindReceiver::class.java).apply {
             putExtra(EXTRA_REMIND_CODE, code)
             putExtra(EXTRA_REMIND_TYPE, type.name)
             putExtra(EXTRA_REMIND_SOURCE, source)
             putExtra(EXTRA_REMIND_KIND, kind)
+            historyId?.let { putExtra("history_id", it) }
         }
-        val pi = PendingIntent.getBroadcast(context, remindRequestCode(type, code, kind), intent,
+        val pi = PendingIntent.getBroadcast(context, remindRequestCode(type, historyId?.let { "record:$it" } ?: code, kind), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val triggerAt = System.currentTimeMillis() + delayMs
         try {
@@ -248,7 +263,7 @@ object CodeNotificationManager {
 
     /** RemindReceiver 在 onReceive 里调用：真正弹出提醒通知。kind: later/expiry（文案区分）。 */
     fun showReminder(context: Context, code: String, type: CodeExtractor.CodeType, source: String,
-                     kind: String = KIND_LATER) {
+                     kind: String = KIND_LATER, historyId: Long? = null) {
         if (code.isBlank()) return
         // Android 13+ 无通知权限时静默跳过（与 show/showDuplicate 一致），避免无效提醒
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
@@ -276,7 +291,7 @@ object CodeNotificationManager {
                 .build()
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
             // 提醒段独立 id 空间，不覆盖主通知/去重提示/结果提示
-            manager.notify(remindNotifyId(type, code), notification)
+            manager.notify(remindNotifyId(type, historyId?.let { "record:$it" } ?: code), notification)
         } catch (e: Exception) { Log.w("CodeNotification", "提醒通知构建失败", e) }
     }
 
@@ -293,11 +308,11 @@ object CodeNotificationManager {
     }
 
     /** 取消已设置的提醒闹钟（用户提前取件时调用）：later 与 expiry 两类一并取消。 */
-    fun cancelRemind(context: Context, code: String, type: CodeExtractor.CodeType) {
+    fun cancelRemind(context: Context, code: String, type: CodeExtractor.CodeType, historyId: Long? = null) {
         val alarm = context.getSystemService(AlarmManager::class.java) ?: return
         val intent = Intent(context, RemindReceiver::class.java)
         for (kind in listOf(KIND_LATER, KIND_EXPIRY)) {
-            val pi = PendingIntent.getBroadcast(context, remindRequestCode(type, code, kind), intent,
+            val pi = PendingIntent.getBroadcast(context, remindRequestCode(type, historyId?.let { "record:$it" } ?: code, kind), intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             alarm.cancel(pi)
             pi.cancel()
@@ -317,12 +332,13 @@ object CodeNotificationManager {
         val channelId = style.channelId
         val iconLabel = style.iconLabel
 
-        val pendingIntent = launchPendingIntent(context, requestCode = safeId(type, code), extra = "show_dedup" to true)
+        val pendingIntent = launchPendingIntent(context, requestCode = safeId(type, "record:$historyId"))
 
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .addExtras(android.os.Bundle().apply { putLong("history_id", historyId) })
             .setContentTitle("$iconLabel $code 再次出现")
-            .setContentText("$source · 点击整理去重（共 ${dupGroupCount} 组重复）")
+            .setContentText("$source · 这条待取记录已更新")
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -330,6 +346,6 @@ object CodeNotificationManager {
 
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         // 去重提示用独立 id 段（code+type 复合），避免与主通知/提醒/结果提示冲突
-        nm.notify(dupNotifyId(type, code), notification)
+        nm.notify(dupNotifyId(type, "record:$historyId"), notification)
     }
 }

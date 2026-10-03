@@ -106,11 +106,13 @@ fun HomeScreen(
     var typeFilter by remember { mutableStateOf("all") }
     var guideExpanded by remember { mutableStateOf(false) }
     // 分组方式：time=按时间 / address=按地址聚合（rememberSaveable：旋转屏幕保持）
-    var groupMode by rememberSaveable { mutableStateOf("time") }
+    var groupMode by rememberSaveable { mutableStateOf("address") }
+    var pendingOnly by rememberSaveable { mutableStateOf(true) }
+    var confirmGroup by remember { mutableStateOf<List<CodeHistory>?>(null) }
 
-    val filteredHistory = remember(activeHistory, typeFilter) {
+    val filteredHistory = remember(activeHistory, typeFilter, pendingOnly) {
         activeHistory.filter { h ->
-            when (typeFilter) {
+            (!pendingOnly || h.type != "coupon") && when (typeFilter) {
                 "food" -> h.type == "pickup_food"
                 "parcel" -> h.type == "pickup_parcel"
                 "coupon" -> h.type == "coupon"
@@ -126,7 +128,7 @@ fun HomeScreen(
     }
     val yesterdayStart = todayStart - 24 * 60 * 60 * 1000
 
-    val grouped: Map<String, List<CodeHistory>> = remember(filteredHistory) {
+    val grouped: Map<String, List<CodeHistory>> = remember(filteredHistory, todayStart) {
         filteredHistory.groupBy { item ->
             when {
                 item.timestamp >= todayStart -> "今天"
@@ -146,7 +148,7 @@ fun HomeScreen(
             // 共享操作：标记已取/删除 → 移入回收站 → snackbar 撤销
             fun markAsDone(item: CodeHistory) {
                 vm.markAsDone(item,
-                    onSuccess = {
+                    onSuccess = { batch ->
                         scope.launch {
                             val result = snackbarHostState.showSnackbar(
                                 message = "已移至回收站，24小时后自动删除",
@@ -154,7 +156,7 @@ fun HomeScreen(
                                 duration = SnackbarDuration.Short
                             )
                             if (result == SnackbarResult.ActionPerformed) {
-                                vm.undoDone(item, trashHistory)
+                                vm.undoDone(batch) { message -> scope.launch { snackbarHostState.showSnackbar(message) } }
                             }
                         }
                     },
@@ -164,29 +166,41 @@ fun HomeScreen(
                 )
             }
 
+    confirmGroup?.let { items ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmGroup = null },
+            title = { Text("本站全部已取？") },
+            text = { Text("将 ${items.first().pickupAddress} 的 ${items.size} 条记录移至回收站，可撤销。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmGroup = null
+                    vm.markGroupDone(items, onSuccess = { batch ->
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar("已取 ${batch.items.size} 件", "撤销", duration = SnackbarDuration.Long)
+                            if (result == SnackbarResult.ActionPerformed) vm.undoDone(batch) { message -> scope.launch { snackbarHostState.showSnackbar(message) } }
+                        }
+                    }, onError = { message -> scope.launch { snackbarHostState.showSnackbar(message) } })
+                }) { Text("全部已取") }
+            },
+            dismissButton = { TextButton(onClick = { confirmGroup = null }) { Text("取消") } }
+        )
+    }
+
     LaunchedEffect(activeHistory) { vm.refreshDedupCount() }
 
     Scaffold(
         topBar = {
+            Column {
             TopAppBar(
                 title = {
                     Text("码上闪记", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 },
                 actions = {
-                    // 右上角四个动作图标：2026-09-18 用户指定换成附件里的线性图标（Lucide 风格），
+                    // 右上角三个辅助动作图标：2026-09-18 用户指定换成附件里的线性图标（Lucide 风格），
                     // 统一用 onSurface 上色（比默认的 onSurfaceVariant 更深）+ 20dp（用户反馈 24dp 偏大）
                     // + 同一个 IconButton 热区。
                     val actionTint = MaterialTheme.colorScheme.onSurface
                     val iconModifier = Modifier.size(20.dp)
-                    // 取件时最常用的动作放在最前面：一键打开身份码
-                    IconButton(onClick = onIdentityCodeClick) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_action_qr_code),
-                            contentDescription = "身份码",
-                            colorFilter = ColorFilter.tint(actionTint),
-                            modifier = iconModifier
-                        )
-                    }
                     IconButton(onClick = onStatsClick) {
                         Image(
                             painter = painterResource(R.drawable.ic_action_info),
@@ -216,6 +230,8 @@ fun HomeScreen(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
+            com.pickupcode.app.ui.components.PickupIdentityCard()
+            }
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -241,9 +257,29 @@ fun HomeScreen(
                     .background(MaterialTheme.colorScheme.background),
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
+            item {
+                val pending = HomeGrouping.pending(activeHistory)
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("待取清单", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("${pending.sumOf { it.second.size }} 件待取 · ${pending.count { it.first.isNotBlank() }} 个地点",
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            androidx.compose.material3.FilterChip(selected = pendingOnly,
+                                onClick = { pendingOnly = true; typeFilter = "all" }, label = { Text("待取") })
+                            androidx.compose.material3.FilterChip(selected = !pendingOnly,
+                                onClick = { pendingOnly = false }, label = { Text("全部记录") })
+                        }
+                    }
+                }
+            }
             // FilterChips
             item {
-                FilterChipRow(currentFilter = typeFilter, onFilterChange = { typeFilter = it })
+                FilterChipRow(currentFilter = typeFilter, onFilterChange = { typeFilter = it; if (it == "coupon") pendingOnly = false })
             }
 
             // 分组方式切换（按时间 / 按地址聚合）
@@ -449,7 +485,7 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("暂无记录",
+                            Text(if (pendingOnly) "暂无待取记录" else "暂无记录",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -461,7 +497,8 @@ fun HomeScreen(
             if (groupMode == "address") {
                 addressGroups.forEach { (addr, groupItems) ->
                     item(key = "addr_header_$addr") {
-                        AddressGroupHeader(address = addr.ifBlank { "未填地址" }, count = groupItems.size)
+                        AddressGroupHeader(address = addr.ifBlank { "未填地址" }, count = groupItems.size,
+                            onDoneAll = if (pendingOnly && addr.isNotBlank()) ({ confirmGroup = groupItems.toList() }) else null)
                     }
                     items(groupItems, key = { it.id }) { cardItem ->
                         CodeHistoryCard(
@@ -499,3 +536,4 @@ fun HomeScreen(
         }  // Box 结束
     }
 }
+

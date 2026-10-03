@@ -1,0 +1,9 @@
+# id: sms-batch-12
+# source: sms
+# screen: 0
+# note: 用户短信批次的同形态脱敏样本
+
+L - - - - - 【兔喜生活】请凭384114至青禾村24排菜鸟驿站中通3号柜兔喜快递柜取件，免费存48小时，超时收0.30元3.00元封顶，拒放柜请联业务员。
+E code pickup_parcel 384114
+E codeaddr 384114 青禾村24排菜鸟驿站
+E codesource 384114 中通

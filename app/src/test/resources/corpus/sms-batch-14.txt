@@ -1,0 +1,9 @@
+# id: sms-batch-14
+# source: sms
+# screen: 0
+# note: 用户短信批次的同形态脱敏样本
+
+L - - - - - 【南京百米需】您的圆通包裹已到青禾村24排菜鸟驿站7号柜18-15号格口，取件码7922-0881。
+E code pickup_parcel 7922-0881
+E codeaddr 7922-0881 青禾村24排菜鸟驿站
+E codesource 7922-0881 圆通

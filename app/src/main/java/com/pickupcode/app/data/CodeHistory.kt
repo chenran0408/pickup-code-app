@@ -2,6 +2,7 @@ package com.pickupcode.app.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.ColumnInfo
 
 @Entity(tableName = "code_history")
 data class CodeHistory(
@@ -21,5 +22,10 @@ data class CodeHistory(
     val shareSourcePkg: String = "", // 分享来源 App 包名（如 com.tencent.mm）；无=空
     val shareSourceName: String = "", // 分享来源 App 可读名（如 微信）；无=空
     val cabinetNumber: String = "",  // 独立柜号（如 丰巢2号柜 / 12号格口）；无=空（DB v5）
+    @ColumnInfo(defaultValue = "''") val trackingNumber: String = "",
+    @ColumnInfo(defaultValue = "0") val userEditedFields: Int = 0,
+    @ColumnInfo(defaultValue = "'local'") val recognitionOrigin: String = "local",
+    @ColumnInfo(defaultValue = "'local'") val addressOrigin: String = "local",
+    @ColumnInfo(defaultValue = "''") val suggestedAddress: String = "",
     val expiryTime: Long = 0  // 到期提醒时刻 ms；0=无需提醒（取餐码/券码恒为 0）（DB v6）
 )

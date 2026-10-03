@@ -1,0 +1,9 @@
+# id: sms-batch-08
+# source: sms
+# screen: 0
+# note: 用户短信批次的同形态脱敏样本
+
+L - - - - - 【菜鸟驿站】您有1个包裹已到江城工大青禾村24排菜鸟驿站，请凭23-3-2114取件。
+E code pickup_parcel 23-3-2114
+E codeaddr 23-3-2114 江城工大青禾村24排菜鸟驿站
+E codesource 23-3-2114 菜鸟

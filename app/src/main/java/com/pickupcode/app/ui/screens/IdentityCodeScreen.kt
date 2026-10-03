@@ -129,7 +129,8 @@ private fun IdentityEntry(
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .heightIn(min = 88.dp)
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {

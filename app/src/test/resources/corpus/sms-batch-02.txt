@@ -1,0 +1,9 @@
+# id: sms-batch-02
+# source: sms
+# screen: 0
+# note: 用户短信批次的同形态脱敏样本
+
+L - - - - - 【多多代收点】凭3-6-4138到青禾村24排4号取尾号7202包裹。
+E code pickup_parcel 3-6-4138
+E codeaddr 3-6-4138 青禾村24排4号
+E codesource 3-6-4138 多多

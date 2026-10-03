@@ -1,0 +1,9 @@
+# id: sms-batch-10
+# source: sms
+# screen: 0
+# note: 用户短信批次的同形态脱敏样本
+
+L - - - - - 【圆通速递】请凭4-4-5125到青禾村24排4号取件，地址：青禾村24排4号。
+E code pickup_parcel 4-4-5125
+E codeaddr 4-4-5125 青禾村24排4号
+E codesource 4-4-5125 圆通

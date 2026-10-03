@@ -1,0 +1,9 @@
+# id: sms-batch-19
+# source: sms
+# screen: 0
+# note: 用户短信批次的同形态脱敏样本
+
+L - - - - - 【妈妈驿站】取货码86-2531，您有韵达快递包裹，已到青川县南街政务大厅旁。
+E code pickup_parcel 86-2531
+E codeaddr 86-2531 青川县南街政务大厅旁
+E codesource 86-2531 韵达

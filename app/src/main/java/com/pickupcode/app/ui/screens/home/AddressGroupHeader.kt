@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,7 +30,8 @@ import com.pickupcode.app.R
 fun AddressGroupHeader(
     address: String,
     count: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onDoneAll: (() -> Unit)? = null
 ) {
     Row(
         modifier = modifier
@@ -60,5 +62,8 @@ fun AddressGroupHeader(
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.padding(start = 8.dp)
         )
+        if (onDoneAll != null) {
+            TextButton(onClick = onDoneAll) { Text("本站已取") }
+        }
     }
 }

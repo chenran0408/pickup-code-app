@@ -527,23 +527,22 @@ class PickupCodeAccessibilityService : AccessibilityService() {
                 bmp?.let { com.pickupcode.app.util.ImageUtils.toBase64JpegForAi(it) }
             }
         } else null
-        val aiBudgetMs = if (aiImage != null) 25_000L else 8_000L
         // AI 读到的地址/柜号：code → 值，稍后交给管線在本地取不到时填空
         val aiAddressHints = mutableMapOf<String, String>()
         val aiCabinetHints = mutableMapOf<String, String>()
-        val aiDeferred = startAiExtract(allText, settings, hasCoupon, aiImage)
+        val aiEnabled = !hasCoupon && settings.enableAI && settings.apiKey.isNotBlank()
 
         // ③ 正则识别（无券码时运行）
         if (!hasCoupon) collectRegexResults(ocrLines, settings, allResults, codeSources)
 
         // ④ 合并 AI 结果：与正则同码同 type 直接去重；不同 type 才留给下方冲突提示（问题2）
-        val aiErr = mergeAiResults(aiDeferred, settings, allResults, codeSources, aiBudgetMs, aiAddressHints, aiCabinetHints)
+        val aiErr: String? = null
 
         // Extract address (parcel scenario)
         val address = AddressExtractor.extractAddressFromStores(this, ocrLines, allText)
 
         // ⑤ 问题5：若正则未识别到且 AI 也失败，提示里带上失败原因（用户有感知）
-        if (notifyIfNoResult(allResults, aiErr, settings, silent, bmp)) return
+        if (!aiEnabled && notifyIfNoResult(allResults, aiErr, settings, silent, bmp)) return
 
         // H4: 识别到结果才落盘截图（保存后立即回收位图，避免泄漏）
         val screenshotPath = bmp?.let {
@@ -579,11 +578,14 @@ class PickupCodeAccessibilityService : AccessibilityService() {
             )
         }
 
-        // 地图地址验证（finalize 之后才有 id，写回 geo 字段与分享路径一致）
-        verifyMapAddress(address, settings, saved.map { it.id })
-
-        // ⑦ 快递100 验证：识别到取件码时，用运单号反查取件码/地址作为标准答案，对照 OCR 结果（fire-and-forget）
-        verifyWithKuaidi100(settings, allText, address, allResults)
+        if (saved.isNotEmpty()) scope.launch(Dispatchers.IO) {
+            PostVerifier.verifySaved(this@PickupCodeAccessibilityService, settings, saved, ocrLines)
+        }
+        if (aiEnabled) {
+            BackgroundAiEnricher.start(this, settings, ocrLines, allText, allResults.toList(), codeSources.toMap(),
+                saved, address, screenshotPath, aiImage, showErrors = !silent)
+            if (saved.isEmpty() && !silent) showResult("本地未识别到码，正在等待 AI 补充")
+        }
     }
 
     /** ① 券码：解码内容加入 allResults；返回 true 表示存在券码（互斥标志）。 */
@@ -610,44 +612,6 @@ class PickupCodeAccessibilityService : AccessibilityService() {
         return hasCoupon
     }
 
-    /** ② 有券码 / 未启用 AI / 无 API Key 时返回 null（此时 AI 不会运行）。[aiImageBase64] 非空则走视觉通道。 */
-    private fun startAiExtract(
-        allText: String,
-        settings: AppPreferences.Settings,
-        hasCoupon: Boolean,
-        aiImageBase64: String? = null
-    ): Deferred<AIExtractor.AIExtractResult>? {
-        // 诊断：把"AI 为什么没跑"写到 Info 级（不含 PII），用户/开发者无需 Debug 包也能排查
-        if (hasCoupon) {
-            Log.i(TAG, "本屏检测到券码，按设计跳过 AI 识别")
-            return null
-        }
-        if (!settings.enableAI) {
-            Log.i(TAG, "AI 识别未运行：设置里「启用 AI 识别」为关闭")
-            return null
-        }
-        if (settings.apiKey.isBlank()) {
-            Log.i(TAG, "AI 识别未运行：已开启开关但读不到 API Key（AndroidKeyStore 密钥丢失时需重新录入）")
-            return null
-        }
-        val image = aiImageBase64?.takeIf { it.isNotBlank() && settings.enableAiImage }
-        Log.i(TAG, "AI 启动：通道=${if (image != null) "图片" else "文本"}，图片体积≈${(image?.length ?: 0) / 1024}KB(base64)")
-        return scope.async(Dispatchers.IO) {
-            if (image != null) {
-                AIExtractor.extractFromImage(
-                    imageBase64 = image,
-                    apiKey = settings.apiKey,
-                    apiBaseUrl = settings.apiBaseUrl,
-                    model = settings.apiModel,
-                    fallbackText = allText
-                )
-            } else {
-                AIExtractor.extract(allText, settings.apiKey, settings.apiBaseUrl, settings.apiModel)
-            }
-        }
-    }
-
-    /** ③ 正则识别：按置信度阈值与类型开关过滤后追加到 allResults。 */
     private fun collectRegexResults(ocrLines: List<OCREngine.TextLine>, settings: AppPreferences.Settings,
                                     allResults: MutableList<Pair<String, CodeExtractor.CodeType>>,
                                     codeSources: MutableMap<String, String>) {
@@ -656,71 +620,6 @@ class PickupCodeAccessibilityService : AccessibilityService() {
             if (re.confidence >= settings.confidenceThreshold && isTypeEnabled(re.type, settings)) {
                 allResults.add(re.code to re.type)
                 codeSources[re.code] = re.source
-            }
-        }
-    }
-
-    /** ④ 合并 AI 结果：同码同 type 已有（正则或其它 AI 项）→ 跳过；否则加入。返回 aiErr（失败原因，供空结果提示用）。 */
-    private suspend fun mergeAiResults(aiDeferred: Deferred<AIExtractor.AIExtractResult>?, settings: AppPreferences.Settings,
-                                       allResults: MutableList<Pair<String, CodeExtractor.CodeType>>,
-                                       codeSources: MutableMap<String, String>,
-                                       budgetMs: Long = 8_000L,
-                                       aiAddressHints: MutableMap<String, String> = mutableMapOf(),
-                                       aiCabinetHints: MutableMap<String, String> = mutableMapOf()): String? {
-        var aiErr: String? = null
-        if (aiDeferred != null) {
-            try {
-                // 与短信/分享路径对齐：AI 最多等预算时长，超时仅用正则结果，不拖死落库/通知
-                val aiRes = kotlinx.coroutines.withTimeoutOrNull(budgetMs) { aiDeferred.await() }
-                if (aiRes == null) {
-                    aiDeferred.cancel()
-                    Log.d(TAG, "AI 超时未返回（预算 ${budgetMs}ms），仅用正则结果")
-                    return "AI服务超时"
-                }
-                aiErr = aiRes.error
-                if (aiRes.error != null) {
-                    Log.w(TAG, "AI 识别失败: ${aiRes.error}")
-                }
-                Log.i(TAG, "AI 返回 ${aiRes.results.size} 条（图片通道=${aiRes.usedImage}）")
-                for (ai in aiRes.results) {
-                    // AI 给出的地址/柜号：先登记（即使该码已被正则识别，也能用来补空地址）
-                    ai.address.ifBlank { ai.station }.takeIf { it.isNotBlank() }?.let { aiAddressHints[ai.code] = it }
-                    ai.cabinet.takeIf { it.isNotBlank() }?.let { aiCabinetHints[ai.code] = it }
-                    if (!isTypeEnabled(ai.type, settings)) continue
-                    val alreadySame = allResults.any { it.first == ai.code && it.second == ai.type }
-                    if (alreadySame) continue
-                    allResults.add(ai.code to ai.type)
-                    codeSources.putIfAbsent(ai.code, ai.source)
-                }
-            } catch (e: Exception) {
-                // Low-1: 协程取消异常必须向上传播，不能被吞掉
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                aiErr = e.message ?: "AI同步异常"
-                Log.w(TAG, "AI 结果合并异常: ${e.message}")
-            }
-        }
-        return aiErr
-    }
-
-    /** 地图地址验证（async, fire-and-forget）：学习 + 定向写回 geo 字段（与分享路径一致）。 */
-    private fun verifyMapAddress(address: String, settings: AppPreferences.Settings, savedIds: List<Long>) {
-        if (settings.enableMapVerify && address.isNotBlank() && savedIds.isNotEmpty()) {
-            scope.launch {
-                PostVerifier.verifyMap(this@PickupCodeAccessibilityService, address, settings.amapApiKey.ifBlank { null }) { conf, fmtAddr ->
-                    try {
-                        PatternLearner.recordAddressVerified(this@PickupCodeAccessibilityService, address, conf)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "recordAddressVerified failed: ${e.message}")
-                    }
-                    try {
-                        val repo = AppDatabase.getInstance(this@PickupCodeAccessibilityService).repository
-                        for (id in savedIds) {
-                            repo.updateGeo(id, true, conf, fmtAddr ?: "")
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "updateGeo failed: ${e.message}")
-                    }
-                }
             }
         }
     }
@@ -768,31 +667,6 @@ class PickupCodeAccessibilityService : AccessibilityService() {
     private fun notifyConflicts(conflicts: List<String>, silent: Boolean) {
         if (conflicts.isNotEmpty() && !silent) {
             showResult("「${conflicts.joinToString("、")}」同时匹配取餐/取件类型，请进入App确认")
-        }
-    }
-
-    /** ⑦ 快递100 验证：识别到取件码时，用运单号反查取件码/地址作为标准答案，对照 OCR 结果（fire-and-forget）。 */
-    private fun verifyWithKuaidi100(settings: AppPreferences.Settings, allText: String, address: String,
-                                    allResults: List<Pair<String, CodeExtractor.CodeType>>) {
-        if (settings.enableKuaidi100 && settings.kuaidi100Key.isNotBlank()) {
-            val trackingNum = BrandResolver.findOrderNumber(allText)
-            if (trackingNum != null) {
-                scope.launch {
-                    val res = PostVerifier.verifyKuaidi100(
-                        this@PickupCodeAccessibilityService, settings.kuaidi100Key, trackingNum,
-                        allResults.map { it.first }
-                    ) ?: return@launch
-                    val pCode = res.pickUpCode ?: return@launch
-                    // 若 OCR 未识别出地址，且 API 返回了标准地址，定向补全（不覆盖中间用户操作）
-                    if (address.isBlank() && !res.pickUpAddress.isNullOrBlank()) {
-                        val repo = AppDatabase.getInstance(this@PickupCodeAccessibilityService).repository
-                        val rec = repo.findByCodeAndType(pCode, CodeExtractor.CodeType.pickup_parcel.name)
-                        if (rec != null && rec.pickupAddress.isBlank()) {
-                            repo.updatePickupAddress(rec.id, res.pickUpAddress)
-                        }
-                    }
-                }
-            }
         }
     }
 

@@ -309,6 +309,12 @@ object ShareReceiver {
             return
         }
 
+        val imageText = lines.joinToString("\n") { it.text }
+        if (com.pickupcode.app.util.SensitivePageGuard.isIdentityCodePage(imageText)) {
+            if (!bitmap.isRecycled) bitmap.recycle()
+            return
+        }
+
         // AI 图片通道：必须在 recycle 之前把图压成 base64（用户要求「发给 AI 的是照片」）。
         // 只有 AI 已启用且「AI 读取图片」开着时才压，避免白耗 CPU。
         val aiImage: String? = run {
@@ -349,6 +355,8 @@ object ShareReceiver {
         val shareSourcePkg = shareSource?.pkg ?: ""
         val shareSourceName = shareSource?.name ?: ""
         val allText = lines.joinToString(" ") { it.text }
+
+        if (com.pickupcode.app.util.SensitivePageGuard.isIdentityCodePage(allText)) return
 
         // 金融/支付噪音拦截：银行/支付/转账等通知截图里的数字（金额/验证码/余额）极易被当取件码。
         // 命中金融词且无快递/取件信号词 → 整段不识别。（参考同类产品实现 isExpressRelatedSms）
@@ -405,67 +413,11 @@ object ShareReceiver {
                 }
             }
 
-            // AI 补识别：与短信路径对齐，设超时预算，超时仅用正则结果，绝不拖死落库/通知。
-            // 图片通道（用户要求"发给 AI 的是照片"）：把整张图交给视觉模型，它直接读图并给出
-            // 码值/品牌/地址；图片比文本慢，预算放宽到 25s；模型不支持图片时内部自动回退文本。
-            if (settings.enableAI && settings.apiKey.isNotBlank()) {
-                val imageMode = !aiImageBase64.isNullOrBlank()
-                val budget = if (imageMode) 25_000L else 8_000L
-                val aiRes = kotlinx.coroutines.withTimeoutOrNull(budget) {
-                    if (imageMode) {
-                        AIExtractor.extractFromImage(
-                            imageBase64 = aiImageBase64!!,
-                            apiKey = settings.apiKey,
-                            apiBaseUrl = settings.apiBaseUrl,
-                            model = settings.apiModel,
-                            fallbackText = allText
-                        )
-                    } else {
-                        AIExtractor.extract(allText, settings.apiKey, settings.apiBaseUrl, settings.apiModel)
-                    }
-                }
-                if (aiRes != null) {
-                    if (aiRes.error != null) {
-                        Log.w(TAG, "AI 识别失败: ${aiRes.error}")
-                        // 诊断（2026-09-16）：分享是用户主动操作，失败必须让用户看见，
-                        // 否则"配了 Key 却没作用"完全无从判断。原始细节仍只写日志。
-                        android.os.Handler(android.os.Looper.getMainLooper()).post {
-                            android.widget.Toast.makeText(
-                                context,
-                                "AI 未参与识别：${AIExtractor.categorizeError(aiRes.error)}",
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-                    Log.i(TAG, "AI 返回 ${aiRes.results.size} 条（图片通道=${aiRes.usedImage}）" +
-                        (if (BuildConfig.DEBUG) ": " + aiRes.results.joinToString { "${it.code}(${it.type})@${it.address}" } else ""))
-                    for (ai in aiRes.results) {
-                        // AI 给出的地址/柜号：无论最终是否新增码都要登记，供管线在本地取不到时填空
-                        ai.address.ifBlank { ai.station }.takeIf { it.isNotBlank() }?.let { aiAddressHints[ai.code] = it }
-                        ai.cabinet.takeIf { it.isNotBlank() }?.let { aiCabinetHints[ai.code] = it }
-                        if (isTypeDisabled(ai.type, settings)) continue
-                        if (allResults.any { it.code == ai.code && it.type == ai.type }) continue // 同码同type去重
-                        allResults.add(CodeExtractor.ExtractedCode(ai.code, ai.type, ai.source, 1.0f))
-                    }
-                } else {
-                    Log.w(TAG, "AI 超时未返回（预算 ${budget}ms，图片通道=$imageMode），仅用正则结果")
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        android.widget.Toast.makeText(
-                            context,
-                            "AI 未参与识别：AI服务超时（${budget / 1000} 秒）",
-                            android.widget.Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
-            } else {
-                // 诊断：把"为什么没跑"写到 Info 级（不含 PII）
-                Log.i(TAG, "AI 识别未运行：enableAI=${settings.enableAI}, " +
-                    if (settings.apiKey.isBlank()) "读不到 API Key（可能是 AndroidKeyStore 密钥丢失，需重新录入）" else "apiKey 已配置")
-            }
         }
 
-        if (allResults.isEmpty()) {
-            Log.d(TAG, "最终识别结果为空 —— 正则与 AI 均未产出可入库的码（详见上方逐条候选日志）")
+        val aiEnabled = !hasCoupon && settings.enableAI && settings.apiKey.isNotBlank()
+        if (allResults.isEmpty() && !aiEnabled) {
+            db.repository.releaseScreenshots(listOf(screenshotPath))
             return
         }
 
@@ -491,62 +443,17 @@ object ShareReceiver {
                 s.code, s.type, s.source, s.id, s.existed)
             RecognitionPipeline.logSaved(TAG, s.code, s.type, s.source, address, s.existed)
         }
-        // Low-3: 记录本次保存的 code → id，供快递100回填定向更新，避免命中历史最新行
-        val savedIdsByCode = saved.associate { it.code to it.id }
-
-        // Async address geocoding verification（每个码）
-        if (address.isNotBlank() && settings.enableMapVerify) {
-            for (s in saved) {
-                scope.launch(Dispatchers.IO) {
-                    try {
-                        PostVerifier.verifyMap(context, address, settings.amapApiKey.ifBlank { null }) { conf, fmtAddr ->
-                            // 定向更新本次保存的 id（同码同类型并发新保存时 findByCodeAndType 会命中错误行）
-                            savedIdsByCode[s.code]?.let { id ->
-                                db.repository.updateGeo(id, true, conf, fmtAddr ?: "")
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Geo verify error: ${e.message}")
-                    }
-                }
-            }
+        if (saved.isNotEmpty()) scope.launch(Dispatchers.IO) {
+            com.pickupcode.app.service.PostVerifier.verifySaved(context, settings, saved, lines)
         }
-
-        // 快递100 反向验证：识别到运单号时反查取件码/地址作为标准答案（fire-and-forget，与无障碍路径一致）
-        if (settings.enableKuaidi100 && settings.kuaidi100Key.isNotBlank()) {
-            val trackingNum = BrandResolver.findOrderNumber(allText)
-            if (trackingNum != null) {
-                scope.launch(Dispatchers.IO) {
-                    try {
-                        val res = PostVerifier.verifyKuaidi100(context, settings.kuaidi100Key, trackingNum, allResults.map { it.code })
-                            ?: return@launch
-                        val pCode = res.pickUpCode ?: return@launch
-                        if (res.pickUpAddress.isNullOrBlank().not()) {
-                            // Low-3: 优先定向更新本次保存的记录（同码可能有多行历史，findByCodeAndType 会命中错误行）
-                            // 定向列更新，避免整行 update 用旧快照覆盖用户并发编辑
-                            val targetId = savedIdsByCode[pCode]
-                            if (targetId != null) {
-                                db.repository.getByIdSuspend(targetId)?.let { rec ->
-                                    if (rec.pickupAddress.isBlank()) {
-                                        db.repository.updatePickupAddress(targetId, res.pickUpAddress!!)
-                                    }
-                                }
-                            } else {
-                                val rec = db.repository.findByCodeAndType(pCode, CodeExtractor.CodeType.pickup_parcel.name)
-                                if (rec != null && rec.pickupAddress.isBlank()) {
-                                    db.repository.updatePickupAddress(rec.id, res.pickUpAddress!!)
-                                }
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Kuaidi100 verify error: ${e.message}")
-                    }
-                }
-            }
+        if (aiEnabled) {
+            com.pickupcode.app.service.BackgroundAiEnricher.start(
+                context, settings, lines, allText,
+                allResults.map { it.code to it.type }, allResults.associate { it.code to it.source },
+                saved, address, screenshotPath, aiImageBase64, shareSourcePkg, shareSourceName, showErrors = true)
         }
     }
 
-    /** 该类型是否被用户关闭（统一走 RecognitionPipeline，避免三份 switch 漂移） */
     private fun isTypeDisabled(type: CodeExtractor.CodeType, settings: AppPreferences.Settings): Boolean =
         !RecognitionPipeline.isTypeEnabled(type, settings)
 

@@ -19,6 +19,13 @@
       scheme 声明同时用于显式 setPackage 启动时的可解析性校验。
     -->
     <queries>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
+        </intent>
+        <intent>
+            <action android:name="android.provider.Telephony.SMS_DELIVER" />
+        </intent>
         <!-- 身份码跳转目标 -->
         <package android:name="com.taobao.taobao" />
         <package android:name="com.cainiao.wireless" />
@@ -143,6 +150,15 @@
         </service>
 
         <!-- 短信取件码自动识别（SMS_RECEIVED 广播；需 RECEIVE_SMS 权限） -->
+        <service
+            android:name=".service.SmsNotificationListener"
+            android:label="取件码通知识别"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
         <receiver
             android:name=".service.SmsReceiver"
             android:exported="true"

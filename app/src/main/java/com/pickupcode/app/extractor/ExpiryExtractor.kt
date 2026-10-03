@@ -52,6 +52,16 @@ object ExpiryExtractor {
         if (expiryText != null) {
             return parseDeadline(expiryText, createdAt, zoneId) ?: createdAt + DEFAULT_PARCEL_LIFETIME_MS
         }
+        // “免费存48小时”表示免费保管期限，而非收费数字或格口编号。
+        Regex("(?:免费(?:存放|保管|存)|保管期限)\\s*(\\d{1,3})\\s*(小时|天)").find(text)?.let { m ->
+            val amount = m.groupValues[1].toLong()
+            if (amount in 1..90) return createdAt + amount * (if (m.groupValues[2] == "天") 86400000L else 3600000L)
+        }
+        Regex("请\\s*(\\d{1,2})[:：](\\d{2})\\s*前").find(text)?.let { m ->
+            val time = runCatching { LocalTime.of(m.groupValues[1].toInt(), m.groupValues[2].toInt()) }.getOrNull()
+            if (time != null) return Instant.ofEpochMilli(createdAt).atZone(zoneId).toLocalDate()
+                .atTime(time).atZone(zoneId).toInstant().toEpochMilli()
+        }
         return createdAt + DEFAULT_PARCEL_LIFETIME_MS
     }
 

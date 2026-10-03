@@ -61,12 +61,12 @@
 
 ## 测试
 
-> 项目目前暂无测试目录（`app/src/test`、`app/src/androidTest`），欢迎补充。
+> 本地测试位于 `app/src/test`，使用 JUnit 5；目前没有设备测试目录。识别逻辑改动需运行单测及语料回归。
 
-若新增测试，使用 JUnit（本地）或 Instrumented test（设备/模拟器），确保改动可验证：
+若新增测试，使用 JUnit 5（本地）或 Instrumented test（设备/模拟器），确保改动可验证：
 
 ```bash
-# 本地单元测试（若存在）
+# 本地单元测试
 ./gradlew testDebugUnitTest
 ```
 

@@ -5,8 +5,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CodeHistoryDao {
-    /** 活跃记录：按 code+type 去重取最新 */
-    @Query("SELECT * FROM code_history WHERE isActive = 1 AND id IN (SELECT MAX(id) FROM code_history WHERE isActive = 1 GROUP BY code, type) ORDER BY timestamp DESC")
+    /** 活跃记录：保留不同订单/站点的同码记录，合并由上下文策略判断 */
+    @Query("SELECT * FROM code_history WHERE isActive = 1 ORDER BY timestamp DESC")
     fun getActiveFlow(): Flow<List<CodeHistory>>
 
     /** 回收站记录 */
@@ -48,19 +48,43 @@ interface CodeHistoryDao {
     @Query("UPDATE code_history SET geoVerified = :verified, geoConfidence = :confidence, geoFormattedAddress = :formatted WHERE id = :id")
     suspend fun updateGeo(id: Long, verified: Boolean, confidence: Float, formatted: String)
 
-    /** 定向更新 pickupAddress（Kuaidi100 回填，避免整行 update 覆盖中间用户操作）。 */
-    @Query("UPDATE code_history SET pickupAddress = :address WHERE id = :id")
+    /** 人工编辑地址：保护字段并使旧地图验证失效；自动补全另走 fillAddressIfBlank。 */
+    @Query("UPDATE code_history SET pickupAddress = :address, userEditedFields = userEditedFields | 4, addressOrigin = 'user', suggestedAddress = '', geoVerified = 0, geoConfidence = 0, geoFormattedAddress = '' WHERE id = :id")
     suspend fun updatePickupAddress(id: Long, address: String)
 
     /** 详情页编辑用定向更新（M20）：只改对应列，避免整行 update 用旧快照覆盖快速连改的其它字段。 */
-    @Query("UPDATE code_history SET code = :code WHERE id = :id")
+    @Query("UPDATE code_history SET code = :code, userEditedFields = userEditedFields | 1 WHERE id = :id")
     suspend fun updateCode(id: Long, code: String)
 
-    @Query("UPDATE code_history SET source = :source WHERE id = :id")
+    @Query("UPDATE code_history SET source = :source, userEditedFields = userEditedFields | 2 WHERE id = :id")
     suspend fun updateSource(id: Long, source: String)
 
-    @Query("UPDATE code_history SET cabinetNumber = :cabinet WHERE id = :id")
+    @Query("UPDATE code_history SET cabinetNumber = :cabinet, userEditedFields = userEditedFields | 8 WHERE id = :id")
     suspend fun updateCabinet(id: Long, cabinet: String)
+
+    @Query("UPDATE code_history SET userEditedFields = userEditedFields | :field WHERE id = :id")
+    suspend fun protectField(id: Long, field: Int)
+
+    @Query("SELECT * FROM code_history WHERE code = :code AND type = :type AND isActive = 1 ORDER BY timestamp DESC")
+    suspend fun mergeCandidates(code: String, type: String): List<CodeHistory>
+
+    @Query("SELECT COUNT(*) FROM code_history WHERE screenshotPath = :path")
+    suspend fun screenshotReferences(path: String): Int
+
+    @Query("UPDATE code_history SET isActive = 0, doneAt = :doneAt WHERE id IN (:ids) AND isActive = 1")
+    suspend fun markDoneByIds(ids: List<Long>, doneAt: Long)
+
+    @Query("UPDATE code_history SET isActive = 1, doneAt = 0 WHERE id IN (:ids) AND isActive = 0 AND doneAt = :doneAt")
+    suspend fun restoreBatch(ids: List<Long>, doneAt: Long)
+
+    @Query("SELECT * FROM code_history WHERE id IN (:ids) AND isActive = 1")
+    suspend fun activeByIds(ids: List<Long>): List<CodeHistory>
+
+    @Query("UPDATE code_history SET geoVerified = :verified, geoConfidence = :confidence, geoFormattedAddress = :formatted WHERE id = :id AND pickupAddress = :expectedAddress AND isActive = 1")
+    suspend fun updateGeoIfCurrent(id: Long, expectedAddress: String, verified: Boolean, confidence: Float, formatted: String)
+
+    @Query("UPDATE code_history SET pickupAddress = :address, addressOrigin = 'verified', geoVerified = 0, geoConfidence = 0, geoFormattedAddress = '' WHERE id = :id AND pickupAddress = '' AND (userEditedFields & 4) = 0 AND isActive = 1")
+    suspend fun fillAddressIfBlank(id: Long, address: String)
 
     /** 批量归档：同 code+type 的所有活跃记录标记为已取（一次取件对应多份同码记录全部归档）。 */
     @Query("UPDATE code_history SET isActive = 0, doneAt = :doneAt WHERE code = :code AND type = :type AND isActive = 1")
@@ -105,7 +129,7 @@ interface CodeHistoryDao {
     suspend fun deleteOlderThan(before: Long)
 
     /** 查重复码值分组（同 code+type 出现 ≥2 次），每组返回最新一条 */
-    @Query("SELECT * FROM code_history WHERE isActive = 1 AND code || ':' || type IN (SELECT code || ':' || type FROM code_history WHERE isActive = 1 GROUP BY code, type HAVING COUNT(*) >= 2) ORDER BY code, timestamp DESC")
+    @Query("SELECT * FROM code_history WHERE isActive = 1 AND code || ':' || type || ':' || pickupAddress || ':' || source || ':' || trackingNumber IN (SELECT code || ':' || type || ':' || pickupAddress || ':' || source || ':' || trackingNumber FROM code_history WHERE isActive = 1 GROUP BY code, type, pickupAddress, source, trackingNumber HAVING COUNT(*) >= 2) ORDER BY code, timestamp DESC")
     suspend fun getDuplicateEntries(): List<CodeHistory>
 
     /** 查同 code+type 的所有重复记录 */
@@ -113,8 +137,23 @@ interface CodeHistoryDao {
     suspend fun getDuplicatesByCodeAndType(code: String, type: String): List<CodeHistory>
 
     /** 统计活跃的重复组数量 */
-    @Query("SELECT COUNT(*) FROM (SELECT 1 FROM code_history WHERE isActive = 1 GROUP BY code, type HAVING COUNT(*) >= 2)")
+    @Query("SELECT COUNT(*) FROM (SELECT 1 FROM code_history WHERE isActive = 1 GROUP BY code, type, pickupAddress, source, trackingNumber HAVING COUNT(*) >= 2)")
     suspend fun countDuplicateGroups(): Int
+
+    @Transaction
+    suspend fun archiveBatch(ids: List<Long>, doneAt: Long): CodeRepository.DoneBatch {
+        val items = activeByIds(ids)
+        if (items.isNotEmpty()) markDoneByIds(items.map { it.id }, doneAt)
+        return CodeRepository.DoneBatch(items, doneAt)
+    }
+
+    @Transaction
+    suspend fun enrichIfCurrent(id: Long, fresh: CodeHistory): Boolean {
+        val old = getByIdSuspend(id) ?: return false
+        if (!old.isActive || old.code != fresh.code || old.type != fresh.type) return false
+        update(RecordMergePolicy.merge(old, fresh))
+        return true
+    }
 
     /** H6 去重的保存结果：id = 记录 id，existed = 是否命中已存在的活跃记录（用于通知去重提示）。
      *  replacedScreenshotPath：本次更新覆盖掉的旧截图路径（调用方负责删除该孤儿文件）。 */
@@ -126,28 +165,13 @@ interface CodeHistoryDao {
      */
     @Transaction
     suspend fun saveOrUpdate(history: CodeHistory): SaveResult {
-        val existing = findByCodeAndType(history.code, history.type)
+        val existing = mergeCandidates(history.code, history.type).firstOrNull { RecordMergePolicy.samePickup(it, history) }
         return if (existing != null) {
-            // 新截图将覆盖旧路径时，把旧路径带出去给调用方删除文件（否则旧截图成 cacheDir 孤儿）
-            val replaced = if (history.screenshotPath.isNotBlank() &&
-                existing.screenshotPath.isNotBlank() &&
-                history.screenshotPath != existing.screenshotPath) existing.screenshotPath else ""
-            update(existing.copy(
-                source = if (history.source.isNotBlank()) history.source else existing.source,
-                pickupAddress = if (history.pickupAddress.isNotBlank()) history.pickupAddress else existing.pickupAddress,
-                cabinetNumber = if (history.cabinetNumber.isNotBlank()) history.cabinetNumber else existing.cabinetNumber,
-                screenshotPath = if (history.screenshotPath.isNotBlank()) history.screenshotPath else existing.screenshotPath,
-                rawTextSnippet = if (history.rawTextSnippet.isNotBlank()) history.rawTextSnippet else existing.rawTextSnippet,
-                shareSourcePkg = if (history.shareSourcePkg.isNotBlank()) history.shareSourcePkg else existing.shareSourcePkg,
-                shareSourceName = if (history.shareSourceName.isNotBlank()) history.shareSourceName else existing.shareSourceName,
-                // 新识别的到期时间优先，否则保留旧值（避免同码再次识别时到期提醒时间丢失）
-                expiryTime = if (history.expiryTime > 0) history.expiryTime else existing.expiryTime,
-                isActive = true,
-                doneAt = 0,
-                timestamp = history.timestamp
-                // 注意：geoVerified/geoConfidence/geoFormattedAddress 故意不在此合并——
-                // 它们由异步地图验证回调经 updateGeo() 定向写入，整行 copy 会把默认值覆盖掉已验证结果。
-            ))
+            val merged = RecordMergePolicy.merge(existing, history)
+            val replaced = existing.screenshotPath.takeIf {
+                it.isNotBlank() && it != merged.screenshotPath
+            }.orEmpty()
+            update(merged)
             SaveResult(existing.id, true, replaced)
         } else {
             SaveResult(insert(history), false)
@@ -155,7 +179,7 @@ interface CodeHistoryDao {
     }
 }
 
-@Database(entities = [CodeHistory::class], version = 7, exportSchema = true)
+@Database(entities = [CodeHistory::class], version = 8, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun codeHistoryDao(): CodeHistoryDao
     val repository: CodeRepository by lazy { CodeRepository(codeHistoryDao()) }
@@ -240,6 +264,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** 7 → 8：上下文去重、人工保护与识别来源，保留既有记录。 */
+        val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE code_history ADD COLUMN trackingNumber TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE code_history ADD COLUMN userEditedFields INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE code_history ADD COLUMN recognitionOrigin TEXT NOT NULL DEFAULT 'local'")
+                db.execSQL("ALTER TABLE code_history ADD COLUMN addressOrigin TEXT NOT NULL DEFAULT 'local'")
+                db.execSQL("ALTER TABLE code_history ADD COLUMN suggestedAddress TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -250,7 +285,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "pickup_code_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     // 不再使用 fallbackToDestructiveMigration：它会静默删库重建，导致用户取件记录无提示丢失。
                     // 已开 exportSchema=true（schemaLocation 见 build.gradle.kts）让 Room 校验迁移，
                     // 未来迁移写错时应升级失败报错，而不是清空核心数据。

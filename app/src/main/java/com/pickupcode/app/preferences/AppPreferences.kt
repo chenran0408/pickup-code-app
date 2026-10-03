@@ -91,8 +91,10 @@ object AppPreferences {
     /** 主页「怎么添加取件码」引导卡是否已隐藏（永久） */
     private val KEY_HIDE_GUIDE_CARD = booleanPreferencesKey("hide_guide_card")
 
-    /** 是否接收短信取件码自动识别（需 READ_SMS 权限；参考同类产品实现）。 */
+    /** 是否识别新收到的短信（需 RECEIVE_SMS 权限，不扫描历史收件箱）。 */
     private val KEY_ENABLE_SMS_RECEIVE = booleanPreferencesKey("enable_sms_receive")
+    private val KEY_ENABLE_WECHAT_NOTIFICATIONS = booleanPreferencesKey("enable_wechat_notifications")
+    private val KEY_ENABLE_SMS_NOTIFICATIONS = booleanPreferencesKey("enable_sms_notifications")
 
     /** 是否启用到期提醒（快递码存放 3 天/文本时限到达时自动提醒；v6）。 */
     private val KEY_ENABLE_EXPIRY_REMIND = booleanPreferencesKey("enable_expiry_remind")
@@ -118,6 +120,8 @@ object AppPreferences {
         val hideAccessibilityCard: Boolean = false,
         val hideGuideCard: Boolean = false,
         val enableSmsReceive: Boolean = false,
+        val enableWechatNotifications: Boolean = false,
+        val enableSmsNotifications: Boolean = false,
         val enableExpiryRemind: Boolean = true
     )
 
@@ -144,6 +148,8 @@ object AppPreferences {
                 hideAccessibilityCard = prefs[KEY_HIDE_ACCESSIBILITY_CARD] ?: false,
                 hideGuideCard = prefs[KEY_HIDE_GUIDE_CARD] ?: false,
                 enableSmsReceive = prefs[KEY_ENABLE_SMS_RECEIVE] ?: false,
+                enableWechatNotifications = prefs[KEY_ENABLE_WECHAT_NOTIFICATIONS] ?: false,
+                enableSmsNotifications = prefs[KEY_ENABLE_SMS_NOTIFICATIONS] ?: false,
                 enableExpiryRemind = prefs[KEY_ENABLE_EXPIRY_REMIND] ?: true
             )
         }
@@ -222,6 +228,12 @@ object AppPreferences {
 
     suspend fun setEnableSmsReceive(context: Context, value: Boolean) =
         write(context, KEY_ENABLE_SMS_RECEIVE, value)
+
+    suspend fun setEnableWechatNotifications(context: Context, value: Boolean) =
+        write(context, KEY_ENABLE_WECHAT_NOTIFICATIONS, value)
+
+    suspend fun setEnableSmsNotifications(context: Context, value: Boolean) =
+        write(context, KEY_ENABLE_SMS_NOTIFICATIONS, value)
 
     // ---------------------------------------------------------------
     // B6: API Key 加密（AndroidKeyStore AES-GCM，密文存 DataStore）

@@ -1,0 +1,9 @@
+# id: sms-batch-17
+# source: sms
+# screen: 0
+# note: 用户短信批次的同形态脱敏样本
+
+L - - - - - 【圆通快递】包裹已到南街政务大厅隔壁快递驿站，凭2-5-3498取货。
+E code pickup_parcel 2-5-3498
+E codeaddr 2-5-3498 南街政务大厅隔壁快递驿站
+E codesource 2-5-3498 圆通

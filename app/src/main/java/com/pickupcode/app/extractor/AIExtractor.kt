@@ -283,10 +283,37 @@ object AIExtractor {
     }
 
     /** 发一次 POST；返回 (HTTP 码, 正文)。异常由调用方处理。 */
-    private fun postJson(json: String, apiKey: String, apiBaseUrl: String, readTimeoutMs: Int): Pair<Int, String> {
+    private val requestExecutor = java.util.concurrent.Executors.newFixedThreadPool(3) { task ->
+        Thread(task, "pickup-ai-request").apply { isDaemon = true }
+    }
+
+    /** 取消协程时主动断开连接，避免外围超时后仍占用网络和短信广播预算。 */
+    internal suspend fun postJson(json: String, apiKey: String, apiBaseUrl: String, readTimeoutMs: Int,
+        connectionFactory: (String) -> HttpURLConnection = { URL(it).openConnection() as HttpURLConnection }): Pair<Int, String> =
+        kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+            val connection = java.util.concurrent.atomic.AtomicReference<HttpURLConnection?>()
+            val future = requestExecutor.submit {
+                try {
+                    val result = postJsonBlocking(json, apiKey, apiBaseUrl, readTimeoutMs, connection, connectionFactory) { continuation.isActive }
+                    if (continuation.isActive) continuation.resumeWith(Result.success(result))
+                } catch (error: Exception) {
+                    if (continuation.isActive) continuation.resumeWith(Result.failure(error))
+                }
+            }
+            continuation.invokeOnCancellation {
+                future.cancel(true)
+                connection.get()?.disconnect()
+            }
+        }
+
+    private fun postJsonBlocking(json: String, apiKey: String, apiBaseUrl: String, readTimeoutMs: Int,
+        connection: java.util.concurrent.atomic.AtomicReference<HttpURLConnection?>,
+        connectionFactory: (String) -> HttpURLConnection, active: () -> Boolean): Pair<Int, String> {
         var conn: HttpURLConnection? = null
         try {
-            conn = URL(endpointOf(apiBaseUrl)).openConnection() as HttpURLConnection
+            conn = connectionFactory(endpointOf(apiBaseUrl))
+            connection.set(conn)
+            if (!active()) throw kotlinx.coroutines.CancellationException("AI request cancelled")
             conn.requestMethod = "POST"
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("Authorization", "Bearer $apiKey")

@@ -115,8 +115,8 @@ fun RulesScreen(onBack: () -> Unit) {
         ) {
             item {
                 Text(
-                    "客户端识别全靠下面这些正则。内置模式是出厂定义，你可以停用或改写；" +
-                        "「我的规则」里自动学习和手动添加的规则走同一条管线，完全等价。" +
+                    "内置规则可以开启或停用，支持编辑的规则可改写；" +
+                        "你添加的规则和自动学习的规则都在「我的规则」中管理。" +
                         "改动立即生效（最多 2 秒缓存）。改坏了可以单条还原，或一键还原默认。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -361,7 +361,7 @@ private fun BuiltinRuleRow(
                             Spacer(Modifier.size(6.dp))
                             AssistChip(
                                 onClick = {},
-                                label = { Text("已改写", style = MaterialTheme.typography.labelSmall) },
+                                label = { Text(if (info.overrideRejected) "改写无效，已回退" else "已改写", style = MaterialTheme.typography.labelSmall) },
                                 colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
                             )
                         }

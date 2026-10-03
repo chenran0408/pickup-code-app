@@ -69,7 +69,9 @@ object CorpusRunner {
             if (loc.addrFrom != it) failures += "命中步骤不符：期望[$it]，实际=[${loc.addrFrom}]"
         }
         for (ca in f.expectedCodeAddresses) {
-            val got = AddressExtractor.extractAddressForCode(f.lines, ca.code)
+            val scoped = com.pickupcode.app.extractor.CodeContext.linesForCode(f.lines, ca.code, results.map { it.code })
+            val got = AddressExtractor.extractAddressForCode(scoped, ca.code)
+                .ifBlank { AddressExtractor.extractLocation(scoped, scoped.joinToString("\n") { it.text }).fullAddress }
             if (!got.contains(ca.address)) {
                 failures += "码 ${ca.code} 窗口地址不符：期望含[${ca.address}]，实际=[$got]"
             }

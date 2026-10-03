@@ -25,7 +25,7 @@ object BrandResolver {
     private val REG_DPL = Regex("^DPL\\d{10,15}$")
 
     /** 【品牌】括号解析（CodeExtractor 与 AddressExtractor 共用）。 */
-    internal val BRACKET_BRAND = Regex("【([^】]+)】")
+    internal val BRACKET_BRAND = Regex("[【\\[]([^】\\]\\n]+)[】\\]]")
 
     internal val FOOD_BRAND_KEYWORDS = listOf(
         // 咖啡
@@ -58,7 +58,7 @@ object BrandResolver {
 
     /** 取件点/柜（站点方）——**低优先级**档：只有本卡/全屏都没有快递公司信息时才用。 */
     private val PICKUP_POINTS = listOf(
-        "菜鸟", "丰巢", "妈妈驿站", "兔喜", "免喜", "韵达超市", "欢猫智柜"
+        "菜鸟", "丰巢", "妈妈驿站", "兔喜", "免喜", "韵达超市", "欢猫智柜", "多多", "邮侠", "快宝"
     )
 
     private val COURIER_BRANDS = COURIER_COMPANIES + PICKUP_POINTS
@@ -98,6 +98,12 @@ object BrandResolver {
         // 三个码分属申通/圆通/顺丰，旧实现先跑全屏 `extractBrandViaOrderNum(allText)`，
         // 命中的是**第一张卡**的运单号与其前的品牌，于是三个码全被标成「申通」。
         val codeLineIdx = allLines.indexOfFirst { it === line }
+
+        // 短信同行已明确写了承运商时，优先于站点标题，避免中通柜短信被标成菜鸟。
+        if (hint !in listOf("food", "取餐码", "取餐号") &&
+            BRACKET_BRAND.containsMatchIn(line.text)) {
+            COURIER_COMPANIES.firstOrNull { line.text.contains(it) }?.let { return it }
+        }
 
         // --- S0: Bracket brand on/nearest the code's own line (before global fallback) ---
         // Handles multi-notification shares where each 【品牌】 precedes its own code on the same block.

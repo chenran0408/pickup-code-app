@@ -1,0 +1,9 @@
+# id: sms-batch-16
+# source: sms
+# screen: 0
+# note: 用户短信批次的同形态脱敏样本
+
+L - - - - - 【圆通快递】请凭31-5-4121到青禾村24排4号取运单尾号2428包裹。
+E code pickup_parcel 31-5-4121
+E codeaddr 31-5-4121 青禾村24排4号
+E codesource 31-5-4121 圆通

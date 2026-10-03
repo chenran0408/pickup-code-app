@@ -36,7 +36,7 @@ fun DedupScreen(onBack: () -> Unit) {
         scope.launch {
             val raw = withContext(Dispatchers.IO) { db.repository.getDuplicateEntries() }
             // 按 code+type 聚合：每个重复码一组，组内是全部重复记录
-            val grouped = raw.groupBy { "${it.code}\u0000${it.type}" }
+            val grouped = raw.groupBy { listOf(it.code, it.type, it.pickupAddress, it.source, it.trackingNumber).joinToString("\u0000") }
             groups = grouped
             loading = false
         }

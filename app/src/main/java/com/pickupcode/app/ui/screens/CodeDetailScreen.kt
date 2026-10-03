@@ -65,7 +65,9 @@ fun CodeDetailScreen(
     item: CodeHistory,
     onBack: () -> Unit,
     onUpdateField: (EditField, String) -> Unit,
-    onMarkDone: ((Long) -> Unit)? = null
+    onMarkDone: ((Long) -> Unit)? = null,
+    onConfirmField: (Int) -> Unit = {},
+    onIdentityCodeClick: () -> Unit = {}
 ) {
     val ctx = LocalContext.current; val scope = rememberCoroutineScope()
     // Medium-5: 6 个 PatternLearner 状态改用 produceState 在 IO 线程异步读取初始值
@@ -100,7 +102,7 @@ fun CodeDetailScreen(
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 },
                 // 身份码跳转：三家分开、各带 logo（用户要求放在标题栏右侧）
-                actions = { IdentityCodeTopBarActions() }
+                actions = { TextButton(onClick = onIdentityCodeClick) { Text("取件身份码") } }
             )
         }
     ) { padding ->
@@ -109,6 +111,31 @@ fun CodeDetailScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            com.pickupcode.app.ui.components.PickupIdentityCard()
+            if (item.recognitionOrigin == "ai") {
+                Text("AI 补充识别 · 请核对码值", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            if (item.pickupAddress.isNotBlank()) {
+                val addressSource = when (item.addressOrigin) {
+                    "user" -> "人工填写"
+                    "saved" -> "常用地址匹配"
+                    "ai" -> "AI 补充，待核对"
+                    "verified" -> "物流验证补充"
+                    else -> "本地识别"
+                }
+                Text("地址来源：$addressSource", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (item.suggestedAddress.isNotBlank() && item.suggestedAddress != item.pickupAddress) {
+                Card {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("AI 提供了另一地址", style = MaterialTheme.typography.titleSmall)
+                        Text(item.suggestedAddress)
+                        TextButton(onClick = { onUpdateField(EditField.ADDRESS, item.suggestedAddress) }) { Text("确认使用此地址") }
+                    }
+                }
+            }
             // 2026-09-15 用户要求：删掉「类型」卡片（码值类型在主页列表已有筛选/徽标体现，详情页里冗余）
             EditableField(label = "码值", value = item.code, displayFontSize = 28.sp, displayFontWeight = FontWeight.Bold,
                 onSave = { newCode ->
@@ -124,6 +151,7 @@ fun CodeDetailScreen(
                     onCorrect = {
                         confirmState = confirmState.copy(codeConfirmed = true)
                         PatternLearner.setCodeConfirmed(ctx, item.id, true)
+                        onConfirmField(com.pickupcode.app.data.RecordMergePolicy.CODE)
                         scope.launch(Dispatchers.IO) {
                             PatternLearner.recordVerified(ctx, CodeValidator.getPatternId(item.code))
                             // 用户确认"这个码是对的" → 1 条即成规（详见 PatternLearner 的"用户确认通道"）
@@ -176,6 +204,7 @@ fun CodeDetailScreen(
                     onCorrect = {
                         confirmState = confirmState.copy(sourceConfirmed = true)
                         PatternLearner.setSourceConfirmed(ctx, item.id, true)
+                        onConfirmField(com.pickupcode.app.data.RecordMergePolicy.SOURCE)
                         scope.launch(Dispatchers.IO) {
                             PatternLearner.recordSourceMatch(ctx, item.source)
                         }
@@ -259,6 +288,7 @@ fun CodeDetailScreen(
                         onCorrect = {
                             confirmState = confirmState.copy(addrConfirmed = true)
                             PatternLearner.setAddrConfirmed(ctx, item.id, true)
+                        onConfirmField(com.pickupcode.app.data.RecordMergePolicy.ADDRESS)
                             scope.launch(Dispatchers.IO) {
                                 PatternLearner.recordAddressVerified(ctx, item.pickupAddress, 1.0f)
                             }
@@ -344,6 +374,7 @@ fun CodeDetailScreen(
                     if (!confirmState.codeConfirmed && !confirmState.codeIncorrect) {
                         confirmState = confirmState.copy(codeConfirmed = true)
                         PatternLearner.setCodeConfirmed(ctx, item.id, true)
+                        onConfirmField(com.pickupcode.app.data.RecordMergePolicy.CODE)
                         scope.launch(Dispatchers.IO) {
                             PatternLearner.recordVerified(ctx, CodeValidator.getPatternId(item.code))
                             PatternLearner.learnFromConfirmedCode(ctx, item.code, item.type)
@@ -352,11 +383,13 @@ fun CodeDetailScreen(
                     if (!confirmState.sourceConfirmed && !confirmState.sourceIncorrect) {
                         confirmState = confirmState.copy(sourceConfirmed = true)
                         PatternLearner.setSourceConfirmed(ctx, item.id, true)
+                        onConfirmField(com.pickupcode.app.data.RecordMergePolicy.SOURCE)
                         scope.launch(Dispatchers.IO) { PatternLearner.recordSourceMatch(ctx, item.source) }
                     }
                     if (item.pickupAddress.isNotBlank() && !confirmState.addrConfirmed && !confirmState.addrIncorrect) {
                         confirmState = confirmState.copy(addrConfirmed = true)
                         PatternLearner.setAddrConfirmed(ctx, item.id, true)
+                        onConfirmField(com.pickupcode.app.data.RecordMergePolicy.ADDRESS)
                         scope.launch(Dispatchers.IO) { PatternLearner.recordAddressVerified(ctx, item.pickupAddress, 1.0f) }
                     }
                 }
@@ -381,7 +414,7 @@ fun CodeDetailScreen(
                             com.pickupcode.app.notification.CodeNotificationManager.remindLater(
                                 ctx, item.code,
                                 when (item.type) { "pickup_parcel" -> com.pickupcode.app.extractor.CodeExtractor.CodeType.pickup_parcel; "coupon" -> com.pickupcode.app.extractor.CodeExtractor.CodeType.coupon; else -> com.pickupcode.app.extractor.CodeExtractor.CodeType.pickup_food },
-                                item.source
+                                item.source, historyId = item.id
                             )
                             android.widget.Toast.makeText(ctx, "已设置 1 小时后稍后提醒", android.widget.Toast.LENGTH_SHORT).show()
                         },
@@ -512,3 +545,4 @@ private fun decodeSampledBitmap(path: String, maxDim: Int): android.graphics.Bit
         null
     }
 }
+

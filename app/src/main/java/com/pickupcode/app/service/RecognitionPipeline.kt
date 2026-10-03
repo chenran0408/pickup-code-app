@@ -41,7 +41,7 @@ object RecognitionPipeline {
      * @param screenshotPath 截图路径（短信路径为空串）
      * @param shareSourcePkg/Name 分享来源（短信/无障碍为空串）
      * @param timestamp 入库时间戳
-     * @param aiAddressHints AI（视觉通道）给出的 code→地址/站点，仅在本地管线**拿不到地址**时采用
+     * @param aiAddressHints AI（视觉通道）给出的 code→地址/站点，本地空缺时采用，冲突时保存为候选供用户核对
      * @param aiCabinetHints AI 给出的 code→柜号，仅在本地取不到柜号时采用
      * @return 保存的码列表（供通知分发 / Kuaidi100 回填等后续使用）
      */
@@ -59,13 +59,17 @@ object RecognitionPipeline {
         timestamp: Long = System.currentTimeMillis(),
         aiAddressHints: Map<String, String> = emptyMap(),
         aiCabinetHints: Map<String, String> = emptyMap(),
-        repo: CodeRepository
+        repo: CodeRepository,
+        aiCodes: Set<String> = emptySet(),
+        targetIds: Map<String, Long> = emptyMap()
     ): List<SavedCode> {
         // 🔒 兜底：身份码/出库码页面一律不入库（截图拒采在无障碍路径已做，这里防其它入口漏网）
         if (com.pickupcode.app.util.SensitivePageGuard.isIdentityCodePage(allText)) {
             android.util.Log.w("RecognitionPipeline", "身份码/出库码页面，拒绝入库")
             return emptyList()
         }
+        val validationText = allText.ifBlank { rawSnippet }
+        if (com.pickupcode.app.extractor.AuthenticationCodeFilter.isAuthenticationOnly(validationText)) return emptyList()
         val saved = mutableListOf<SavedCode>()
         val seen = mutableSetOf<String>()
         // 同屏码数（多码时位置类证据要防串台）
@@ -76,88 +80,92 @@ object RecognitionPipeline {
             lines, allText, perCodeAddr = "", fullAddress = fullAddress,
             multiCodeOnScreen = multiCode
         )
-        // 预存地址（用户录的"完整名称 + 关键词"）命中一次即可复用。
-        // 用户期望：**命中关键词就必须用我录的完整名称** —— 因此它是最高优先，
-        // 压过逐码窗口地址与全屏兜底（2026-09-15 修：此前窗口地址赢，导致关键词命中"没作用"）。
-        val savedMatch = com.pickupcode.app.extractor.SavedAddressMatcher.match(
-            lines, com.pickupcode.app.learner.SavedAddressStore.matcherViews(context)
-        )
-        // 柜号与码无关，同屏只提取一次（仅在有取件码时使用）
-        var cabinetCache: String? = null
+        val savedAddresses = com.pickupcode.app.learner.SavedAddressStore.matcherViews(context)
+        val replacedPaths = mutableListOf<String>()
+        repo.retainScreenshot(screenshotPath)
+        try {
         for ((code, type) in allResults) {
+            // AI、分享和其他自动入口统一兜底，过滤不能仅依赖短信入口的金融关键词。
+            if (com.pickupcode.app.extractor.AuthenticationCodeFilter.reject(code, validationText)) continue
             val key = "$code|$type"
             if (key in seen) continue
             seen.add(key)
             val source = codeSources[code] ?: "unknown"
 
-            // 地址优先级：预存命中的完整名称 > 逐码窗口地址 > 仲裁后的全屏兜底
-            // 多码同屏时，预存地址只作用于"命中关键词那一行所属的码"，避免一条地址套到所有码上。
-            val perCodeAddr = AddressExtractor.extractAddressForCode(lines, code)
-            val savedAddr = if (savedMatch != null &&
-                (!multiCode || AddressExtractor.isLineInCodeWindow(lines, code, savedMatch.lineIndex))
-            ) {
-                savedMatch.fullName
-            } else {
-                ""
-            }
-            val localAddr = perCodeAddr.ifBlank { fallbackAddr }
-            // 地址优先级（2026-09-17 调整）：**预存完整名称 > AI 视觉读图结果 > 本地窗口 > 全屏兜底**。
-            // 为什么把 AI 抬到本地启发式之上：用户要的就是"让 AI 读照片里的地址"。
-            // 真机对比（菜鸟「运单号后五位」那张截图）：本地 S0-label 抽出的是一段 OCR 噪声，
-            // 而视觉模型读出的驿站全称明显正确。预存地址仍排第一 —— 那是用户亲手录的权威值。
+            val codeLines = com.pickupcode.app.extractor.CodeContext.linesForCode(lines, code, allResults.map { it.first })
+            val codeText = codeLines.joinToString("\n") { it.text }
+            val savedAddr = com.pickupcode.app.extractor.SavedAddressMatcher.match(codeLines, savedAddresses)?.fullName.orEmpty()
+            val perCodeAddr = AddressExtractor.extractAddressForCode(codeLines, code)
+                .ifBlank { if (codeLines.isEmpty()) "" else AddressExtractor.extractLocation(codeLines, codeText).fullAddress }
+            val localAddr = perCodeAddr.ifBlank { if (multiCode) "" else fallbackAddr }
             val aiAddr = aiAddressHints[code].orEmpty()
-            val effAddr = savedAddr.ifBlank { aiAddr.ifBlank { localAddr } }
-            if (effAddr.isNotBlank()) {
-                val from = when {
-                    savedAddr.isNotBlank() -> "预存地址"
-                    aiAddr.isNotBlank() -> "AI读图"
-                    else -> "本地"
-                }
-                Log.d("RecognitionPipeline", "地址来源=$from：$code @ $effAddr")
+            // 本地已有明确地址时保留它，AI 的冲突结果作为候选供用户核对。
+            val effAddr = savedAddr.ifBlank { localAddr.ifBlank { aiAddr } }
+            val addrOrigin = when {
+                savedAddr.isNotBlank() -> "saved"
+                localAddr.isNotBlank() -> "local"
+                aiAddr.isNotBlank() -> "ai"
+                else -> "local"
             }
-            // 独立柜号（仅取件码）；本地取不到时用 AI 的
+            val suggested = aiAddr.takeIf { it.isNotBlank() && it != effAddr }.orEmpty()
             val cabinet = if (type == CodeExtractor.CodeType.pickup_parcel) {
-                if (cabinetCache == null) cabinetCache = AddressExtractor.extractCabinetNumber(lines, allText)
-                cabinetCache!!.ifBlank { aiCabinetHints[code].orEmpty() }
+                AddressExtractor.extractCabinetNumber(codeLines, codeText).ifBlank { aiCabinetHints[code].orEmpty() }
             } else ""
-
-            // 到期时刻（v6）：快递码算提醒时刻；取餐/券码恒为 0 不提醒
-            val expiryTime = ExpiryExtractor.expiryTimeFor(rawSnippet, type, timestamp) ?: 0L
-
-            val save = repo.save(CodeHistory(
+            val expiryTime = ExpiryExtractor.expiryTimeFor(codeText, type, timestamp) ?: 0L
+            val history = CodeHistory(
                 code = code,
                 type = type.name,
                 source = source,
-                rawTextSnippet = sanitizeSnippet(rawSnippet),
+                rawTextSnippet = sanitizeSnippet(codeText.ifBlank { if (multiCode) "" else rawSnippet }),
                 pickupAddress = effAddr,
                 cabinetNumber = cabinet,
                 screenshotPath = screenshotPath,
                 shareSourcePkg = shareSourcePkg,
                 shareSourceName = shareSourceName,
                 timestamp = timestamp,
-                expiryTime = expiryTime
-            ))
-            // 覆盖更新的旧截图成孤儿文件（系统清理前不回收），立即删除。
-            // 走 Dispatchers.IO：分享/短信路径的调用方协程可能跑在 Default 上，别让文件 IO 占用 CPU 池
-            if (save.replacedScreenshotPath.isNotBlank()) {
-                withContext(Dispatchers.IO) {
-                    try { java.io.File(save.replacedScreenshotPath).delete() } catch (_: Exception) {}
-                }
+                expiryTime = expiryTime,
+                trackingNumber = com.pickupcode.app.extractor.BrandResolver.findOrderNumber(codeText).orEmpty(),
+                recognitionOrigin = if (code in aiCodes) "ai" else "local",
+                addressOrigin = addrOrigin,
+                suggestedAddress = suggested
+            )
+            val targetId = targetIds[key]
+            val existingId = targetId ?: repo.findMergeTarget(history)?.id
+            if (existingId != null) {
+                // 兼容升级前保存在学习偏好中的人工确认，首次识别时转为数据库字段保护。
+                val learner = com.pickupcode.app.learner.PatternLearner
+                if (learner.isCodeConfirmed(context, existingId)) repo.protectField(existingId, com.pickupcode.app.data.RecordMergePolicy.CODE)
+                if (learner.isSourceConfirmed(context, existingId)) repo.protectField(existingId, com.pickupcode.app.data.RecordMergePolicy.SOURCE)
+                if (learner.isAddrConfirmed(context, existingId)) repo.protectField(existingId, com.pickupcode.app.data.RecordMergePolicy.ADDRESS)
             }
-            saved.add(SavedCode(code, type, source, save.id, save.existed, effAddr))
+            if (targetId != null) {
+                // 回填不再次创建通知或记录，并在事务中复查人工修改与归档状态。
+                repo.enrichIfCurrent(targetId, history.copy(screenshotPath = ""))
+                continue
+            }
+            val save = repo.save(history)
+            if (save.replacedScreenshotPath.isNotBlank()) replacedPaths.add(save.replacedScreenshotPath)
+            val stored = repo.getByIdSuspend(save.id) ?: continue
+            saved.add(SavedCode(stored.code, type, stored.source, save.id, save.existed, stored.pickupAddress))
 
             // 到期提醒排程：重复识别（existed）也重排——同码第二条短信可能带来新时限，
             // 若只在 !existed 时排程会漏掉更新后的提醒（FLAG_UPDATE_CURRENT 天然覆盖旧闹钟）
-            if (expiryTime > 0 && AppPreferences.isExpiryRemindEnabled(context)) {
-                CodeNotificationManager.scheduleExpiryReminder(context, code, type, source, expiryTime)
+            if (stored.expiryTime > 0 && AppPreferences.isExpiryRemindEnabled(context)) {
+                CodeNotificationManager.scheduleExpiryReminder(context, stored.code, type, stored.source, stored.expiryTime, historyId = save.id)
             }
 
             // 常用站点学习：带地址的取件记录累计站点频次
             if (type == CodeExtractor.CodeType.pickup_parcel && effAddr.isNotBlank()) {
-                CommonStationStore.recordCode(context, effAddr, rawSnippet)
+                CommonStationStore.recordCode(context, effAddr, codeText)
             }
         }
+        withContext(Dispatchers.IO) { repo.releaseScreenshots(replacedPaths) }
         return saved
+        } finally {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+                repo.releaseScreenshotLease(screenshotPath)
+            }
+        }
     }
 
     /** 通知分发：同码同 type 已存在 → 重复提示；否则正常通知。 */

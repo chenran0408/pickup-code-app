@@ -380,7 +380,8 @@ private fun InputMethodsSection(sc: SettingsCtx) {
         SettingsSubHeader("外部接收")
         SettingsSwitch("Intent 接收", icon = R.drawable.ic_link, sub = "接收来自其他App的分享（文本/图片）", checked = sc.s.enableIntentReceive, onChange = sc.save { AppPreferences.setEnableIntentReceive(sc.ctx, it) })
         SettingsSwitch("分享识别", icon = R.drawable.ic_upload, sub = "文本选择菜单/拖放直达时自动识别取餐取件码", checked = sc.s.enableShareDetection, onChange = sc.save { AppPreferences.setEnableShareDetection(sc.ctx, it) })
-        SettingsSubHeader("短信识别")
+        SettingsSubHeader("短信与微信识别")
+        SmsNotificationSettings(sc)
         SettingsSwitch(
             "短信取件码自动识别", icon = R.drawable.ic_send,
             sub = if (sc.s.enableSmsReceive) "已开启" else "已关闭",
@@ -390,7 +391,7 @@ private fun InputMethodsSection(sc: SettingsCtx) {
         SettingsSubHeader("到期提醒", icon = R.drawable.ic_hourglass)
         SettingsSwitch(
             "快递取件码到期提醒",
-            sub = if (sc.s.enableExpiryRemind) "存放 3 天或文本时限到达时自动提醒" else "已关闭",
+            sub = if (sc.s.enableExpiryRemind) "按文字时限或免费保管期限提醒；未注明时默认 3 天" else "已关闭",
             checked = sc.s.enableExpiryRemind,
             onChange = { v -> sc.save { AppPreferences.setEnableExpiryRemind(sc.ctx, v) } }
         )
@@ -406,6 +407,52 @@ private enum class NotifStatus { OK, NEED_PERMISSION, DISABLED, CHANNEL_SILENT }
  * ③ 各渠道是否被单独静默（importance == NONE）。
  * 返回 (状态, 说明文案)。正常时返回 OK。
  */
+@Composable
+private fun SmsNotificationSettings(sc: SettingsCtx) {
+    val owner = LocalLifecycleOwner.current
+    var granted by remember { mutableStateOf(com.pickupcode.app.service.SmsNotificationListener.hasAccess(sc.ctx)) }
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) granted = com.pickupcode.app.service.SmsNotificationListener.hasAccess(sc.ctx)
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+    fun openAccess() {
+        try {
+            val component = android.content.ComponentName(sc.ctx, com.pickupcode.app.service.SmsNotificationListener::class.java)
+            val intent = if (Build.VERSION.SDK_INT >= 30) Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString())
+            else Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            sc.ctx.startActivity(intent)
+        } catch (_: Exception) {
+            runCatching { sc.ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+                .onFailure { Toast.makeText(sc.ctx, "请在系统设置中开启取件码通知识别的通知访问权限", Toast.LENGTH_LONG).show() }
+        }
+    }
+    SettingsSwitch("短信通知识别（含网络短信）", icon = R.drawable.ic_send,
+        sub = when {
+            !sc.s.enableSmsNotifications -> "仅识别默认短信应用的通知正文，在本地处理"
+            !granted -> "等待通知访问授权"
+            else -> "已开启；需短信通知显示正文"
+        }, checked = sc.s.enableSmsNotifications, onChange = { enabled ->
+            sc.saveRun { AppPreferences.setEnableSmsNotifications(sc.ctx, enabled) }
+            if (enabled && !granted) openAccess()
+        })
+    SettingsSwitch("微信通知识别", icon = R.drawable.ic_send,
+        sub = when {
+            !sc.s.enableWechatNotifications -> "仅识别微信新通知正文，本地处理取件码和取餐码"
+            !granted -> "等待通知访问授权"
+            else -> "已开启；微信需显示消息详情，聊天前台或免打扰无通知时无法识别"
+        }, checked = sc.s.enableWechatNotifications, onChange = { enabled ->
+            sc.saveRun { AppPreferences.setEnableWechatNotifications(sc.ctx, enabled) }
+            if (enabled && !granted) openAccess()
+        })
+    if (sc.s.enableSmsNotifications || sc.s.enableWechatNotifications) TextButton(onClick = { openAccess() }) {
+        Text(if (granted) "管理通知访问权限" else "开启通知访问权限")
+    }
+}
+
 private fun computeNotificationStatus(ctx: Context): Pair<NotifStatus, String> {
     val nm = ctx.getSystemService(NotificationManager::class.java)
         ?: return NotifStatus.OK to ""

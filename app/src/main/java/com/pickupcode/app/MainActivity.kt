@@ -143,7 +143,8 @@ class MainActivity : ComponentActivity() {
                     )
                     Screen.Detail -> DetailScreenWrapper(
                         codeId = selectedCodeId,
-                        onBack = { currentScreen = Screen.Home.name }
+                        onBack = { currentScreen = Screen.Home.name },
+                        onIdentityCodeClick = { currentScreen = Screen.IdentityCode.name }
                     )
                     Screen.Trash -> TrashScreen(
                         onBack = { currentScreen = Screen.Home.name }
@@ -206,7 +207,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun DetailScreenWrapper(codeId: Long, onBack: () -> Unit) {
+    private fun DetailScreenWrapper(codeId: Long, onBack: () -> Unit, onIdentityCodeClick: () -> Unit) {
         val db = AppDatabase.getInstance(this)
         val item by db.repository.getById(codeId).collectAsState(initial = null)
 
@@ -214,6 +215,8 @@ class MainActivity : ComponentActivity() {
             CodeDetailScreen(
                 item = code,
                 onBack = onBack,
+                onIdentityCodeClick = onIdentityCodeClick,
+                onConfirmField = { field -> lifecycleScope.launch(Dispatchers.IO) { db.repository.protectField(codeId, field) } },
                 onUpdateField = { field, value ->
                     lifecycleScope.launch(Dispatchers.IO) {
                         // 定向更新对应列，避免整行 update 用旧快照覆盖快速连改的其它字段（M20）
@@ -228,7 +231,10 @@ class MainActivity : ComponentActivity() {
                 onMarkDone = { id ->
                     lifecycleScope.launch(Dispatchers.IO) {
                         try {
-                            item?.let { db.repository.markDoneByCodeAndType(it.code, it.type) }
+                            item?.let {
+                                db.repository.markDone(it.id)
+                                com.pickupcode.app.notification.CodeNotificationManager.dismissRecord(this@MainActivity, it)
+                            }
                         } catch (e: Exception) {
                             Log.e("MainActivity", "标记已取失败", e)
                         }
@@ -254,7 +260,9 @@ class MainActivity : ComponentActivity() {
                     code = code,
                     type = codeType.name,
                     source = source,
-                    rawTextSnippet = "手动输入"
+                    rawTextSnippet = "手动输入",
+                    userEditedFields = com.pickupcode.app.data.RecordMergePolicy.CODE or com.pickupcode.app.data.RecordMergePolicy.SOURCE,
+                    recognitionOrigin = "user"
                 )
             )
             // 必须传入 historyId，否则通知栏「已取」无法归档（DoneReceiver 要求 historyId > 0）

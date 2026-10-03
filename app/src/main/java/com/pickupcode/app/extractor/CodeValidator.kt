@@ -121,6 +121,7 @@ object CodeValidator {
 
     // 合法取件/取餐码格式白名单（与上方解析正则一一对应，去锚点/去分组后用于全串匹配）
     private val VALID_CODE_FORMATS = listOf(
+        Regex("\\d{4}-\\d{4}"), // 柜机八位取件码，仅由明确码前缀等强上下文召回
         Regex("[A-Za-z]?\\d{1,2}-\\d{1,2}-\\d{1,2}-\\d{2,4}"), // FOUR_SEGMENT
         Regex("\\d{1,3}-\\d{1,2}-\\d{3,6}"),                       // THREE_SEGMENT
         Regex("[A-Z]-\\d{1,2}-\\d{3,4}", RegexOption.IGNORE_CASE),   // LETTER_TWO_SEGMENT
@@ -137,6 +138,9 @@ object CodeValidator {
         // 否则 "12/42/123" 这类 2-3 位裸数字会绕过 PURE_NUMBER_FOOD 的"4-5 位"收紧而通过校验。
         Regex("(?=.*[A-Za-z])(?=.*\\d)[A-Za-z0-9\\-]{2,12}")
     )
+
+    /** 规则页面直接展示生产校验白名单，避免维护另一份格式列表。 */
+    fun validCodeFormatPatterns(): List<String> = VALID_CODE_FORMATS.map { it.pattern }
 
     /** 递增数字序列：排除 0123 / 1234 ... 7890 */
     private val INCREMENTING_DIGITS = (0..7).map { (it..it + 3).joinToString("") }.toSet()

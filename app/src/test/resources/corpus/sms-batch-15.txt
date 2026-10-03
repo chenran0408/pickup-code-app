@@ -1,0 +1,9 @@
+# id: sms-batch-15
+# source: sms
+# screen: 0
+# note: 用户短信批次的同形态脱敏样本
+
+L - - - - - 【邮侠】凭取件码6805-6767到青禾村24排菜鸟驿站6号柜15-24号格口,询。
+E code pickup_parcel 6805-6767
+E codeaddr 6805-6767 青禾村24排菜鸟驿站
+E codesource 6805-6767 邮侠

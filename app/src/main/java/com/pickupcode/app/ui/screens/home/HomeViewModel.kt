@@ -33,11 +33,18 @@ class HomeViewModel(private val repo: CodeRepository) : ViewModel() {
         }
     }
 
-    fun markAsDone(item: CodeHistory, onSuccess: () -> Unit, onError: (String) -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
+    fun markAsDone(item: CodeHistory, onSuccess: (CodeRepository.DoneBatch) -> Unit, onError: (String) -> Unit) =
+        markGroupDone(listOf(item), onSuccess, onError)
+
+    fun markGroupDone(items: List<CodeHistory>, onSuccess: (CodeRepository.DoneBatch) -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
             try {
-                repo.markDoneByCodeAndType(item.code, item.type)
-                onSuccess()
+                val batch = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    repo.markDoneBatch(items.map { it.id }).also { batch ->
+                        batch.items.forEach { cancelNotifications(it) }
+                    }
+                }
+                onSuccess(batch)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -47,15 +54,38 @@ class HomeViewModel(private val repo: CodeRepository) : ViewModel() {
         }
     }
 
-    fun undoDone(item: CodeHistory, trashItems: List<CodeHistory>) {
-        viewModelScope.launch(Dispatchers.IO) {
+    private suspend fun cancelNotifications(item: CodeHistory) {
+        val context = com.pickupcode.app.App.instance
+        val notifications = com.pickupcode.app.notification.CodeNotificationManager
+        notifications.dismissRecord(context, item)
+        if (repo.countActiveByCodeAndType(item.code, item.type) == 0) {
+            val type = runCatching { com.pickupcode.app.extractor.CodeExtractor.CodeType.valueOf(item.type) }.getOrNull() ?: return
+            notifications.cancelRemind(context, item.code, type)
+            notifications.dismissByCodeAndType(context, type, item.code)
+        }
+    }
+
+    fun undoDone(batch: CodeRepository.DoneBatch, onError: (String) -> Unit = {}) {
+        viewModelScope.launch {
             try {
-                trashItems.filter { it.code == item.code && it.type == item.type }
-                    .forEach { repo.restore(it.id) }
+                kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    repo.restoreBatch(batch)
+                    val context = com.pickupcode.app.App.instance
+                    if (com.pickupcode.app.preferences.AppPreferences.isExpiryRemindEnabled(context)) {
+                        batch.items.forEach { item ->
+                            val current = repo.getByIdSuspend(item.id)
+                            if (current?.isActive == true && current.expiryTime > 0) {
+                                com.pickupcode.app.notification.CodeNotificationManager.scheduleExpiryReminder(
+                                    context, current.code, com.pickupcode.app.extractor.CodeExtractor.CodeType.valueOf(current.type),
+                                    current.source, current.expiryTime, historyId = current.id)
+                            }
+                        }
+                    }
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e("HomeViewModel", "撤销归档失败", e)
+                onError("撤销失败，请在回收站恢复")
             }
         }
     }
@@ -64,9 +94,7 @@ class HomeViewModel(private val repo: CodeRepository) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val oneDayAgo = System.currentTimeMillis() - 24 * 60 * 60 * 1000
-                repo.cleanExpired(oneDayAgo) { path ->
-                    try { java.io.File(path).delete() } catch (e: Exception) { Log.w("HomeViewModel", "截图清理失败: $path", e) }
-                }
+                repo.cleanExpired(oneDayAgo)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

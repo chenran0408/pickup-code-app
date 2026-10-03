@@ -654,8 +654,28 @@ object AddressExtractor {
      * 在「码所在行附近的通知卡片窗口」内找该码的取件地址，而不是全屏抓一个地址。
      * 码行 ±3 行 且 y 距离 ≤ 400px 视为同一通知卡片。
      */
+    private fun inlinePickupAddress(text: String, code: String): String? {
+        // 只处理完整通知句式，避免把界面商品/地图名称视为取件地址。
+        if (!text.contains(code) || !Regex("取件|取货|包裹|快递").containsMatchIn(text)) return null
+        fun usable(value: String?): String? = value?.trim(' ', '，', ',', '。', '.', '；', ';')
+            ?.takeIf { it.length >= 4 && isAddressLike(it) }?.take(MAX_ADDRESS_LEN)
+        usable(Regex("地址[:：]\\s*([^，,。；;\\n]+)").find(text)?.groupValues?.get(1))?.let { return it }
+        val token = Regex.escape(code)
+        val afterCode = Regex("(?:凭(?:取件码)?|取件码[:：]?\\s*)$token\\s*(?:到|至|去)(.+?)(?=取尾号|取运单|取件|取货|取您|取你的|取包裹|[，,。；;]|$)")
+        usable(afterCode.find(text)?.groupValues?.get(1))?.let { return it }
+        usable(Regex("前往(.+?)(?=取您的|取件|取货|[，,。；;]|$)").find(text)?.groupValues?.get(1))?.let { return it }
+        usable(Regex("(?:包裹)?已到(?:达)?(.+?)(?=请|凭|[，,。；;]|$)").find(text)?.groupValues?.get(1))?.let { return it }
+        return null
+    }
+
     fun extractAddressForCode(lines: List<OCREngine.TextLine>, code: String): String {
         if (lines.isEmpty()) return ""
+        val scoped = CodeContext.linesForCode(lines, code, listOf(code))
+        if (scoped != lines) return extractAddressForCode(scoped, code)
+        // 短信的码与地址常在同一行，先取直接句式证据，再使用截图的邻行窗口。
+        lines.firstOrNull { it.text.contains(code) }?.let { line ->
+            inlinePickupAddress(line.text, code)?.let { return it }
+        }
         val codeIdx = lines.indexOfFirst { it.text.contains(code) }
         if (codeIdx < 0) return ""
         val codeBoxTop = lines[codeIdx].boundingBox?.let { it.top.toFloat() }
@@ -1004,4 +1024,3 @@ object AddressExtractor {
         return listOf("展开", "复制", "拨打", "导航", "订阅", "延长收货", "查看物流", "确认收货").none { t.contains(it) }
     }
 }
-

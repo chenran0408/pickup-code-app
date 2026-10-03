@@ -1,0 +1,9 @@
+# id: sms-batch-05
+# source: sms
+# screen: 0
+# note: 用户短信批次的同形态脱敏样本
+
+L - - - - - 【兔喜生活】请凭022571至青禾村24排菜鸟驿站中通1号柜兔喜快递柜取件，免费存48小时，超时收0.30元3.00元封顶，拒放柜请联业务员。
+E code pickup_parcel 022571
+E codeaddr 022571 青禾村24排菜鸟驿站
+E codesource 022571 中通

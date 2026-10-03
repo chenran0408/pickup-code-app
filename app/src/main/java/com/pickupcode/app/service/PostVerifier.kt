@@ -54,4 +54,40 @@ object PostVerifier {
         }
         return if (res.success && res.pickUpCode != null) res else null
     }
+    /** 每个 ID 只验证其当前地址，晚到的旧地址结果无法污染新地址。 */
+    suspend fun verifySaved(
+        context: Context,
+        settings: com.pickupcode.app.preferences.AppPreferences.Settings,
+        saved: List<RecognitionPipeline.SavedCode>,
+        lines: List<com.pickupcode.app.ocr.OCREngine.TextLine>
+    ) {
+        val repo = com.pickupcode.app.data.AppDatabase.getInstance(context).repository
+        for (item in saved.distinctBy { it.id }) {
+            val record = repo.getByIdSuspend(item.id) ?: continue
+            if (!record.isActive) continue
+            try {
+                if (settings.enableMapVerify && !record.geoVerified && record.pickupAddress.isNotBlank()) {
+                    verifyMap(context, record.pickupAddress, settings.amapApiKey.ifBlank { null }) { confidence, formatted ->
+                        repo.updateGeoIfCurrent(record.id, record.pickupAddress, true, confidence, formatted.orEmpty())
+                    }
+                }
+                if (settings.enableKuaidi100 && settings.kuaidi100Key.isNotBlank() && record.type == "pickup_parcel") {
+                    val text = com.pickupcode.app.extractor.CodeContext.linesForCode(lines, record.code, saved.map { it.code })
+                        .joinToString("\n") { it.text }
+                    val tracking = record.trackingNumber.ifBlank { com.pickupcode.app.extractor.BrandResolver.findOrderNumber(text).orEmpty() }
+                    if (tracking.isNotBlank()) {
+                        val result = verifyKuaidi100(context, settings.kuaidi100Key, tracking, listOf(record.code))
+                        if (result?.pickUpCode == record.code && !result.pickUpAddress.isNullOrBlank()) {
+                            repo.fillAddressIfBlank(record.id, result.pickUpAddress!!)
+                        }
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                Log.w(TAG, "后置验证失败，保留本地记录")
+            }
+        }
+    }
+
 }

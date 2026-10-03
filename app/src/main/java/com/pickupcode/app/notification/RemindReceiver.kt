@@ -19,6 +19,7 @@ class RemindReceiver : BroadcastReceiver() {
         val code = intent.getStringExtra("remind_code") ?: return
         val typeName = intent.getStringExtra("remind_type") ?: return
         val source = intent.getStringExtra("remind_source").orEmpty()
+        val historyId = intent.getLongExtra("history_id", -1)
         val kind = intent.getStringExtra("remind_kind") ?: "later"
         val type = runCatching { CodeExtractor.CodeType.valueOf(typeName) }
             .getOrDefault(CodeExtractor.CodeType.pickup_parcel)
@@ -36,13 +37,16 @@ class RemindReceiver : BroadcastReceiver() {
                     // 此时宁可在解锁后补弹一次（真取过的码其闹钟已被「已取」cancelRemind 取消，
                     // 残留闹钟罕见），也不让提醒静默丢失。
                     val activeCount = try {
-                        repo.countActiveByCodeAndType(code, type.name)
+                        if (historyId > 0) {
+                            val record = repo.getByIdSuspend(historyId)
+                            if (record?.isActive == true && record.code == code && record.type == type.name) 1 else 0
+                        } else repo.countActiveByCodeAndType(code, type.name)
                     } catch (e: Exception) {
                         Log.w("RemindReceiver", "直启引导阶段 DB 不可用，按未知处理", e)
                         -1
                     }
                     if (activeCount != 0) {
-                        CodeNotificationManager.showReminder(context, code, type, source, kind)
+                        CodeNotificationManager.showReminder(context, code, type, source, kind, historyId.takeIf { it > 0 })
                     }
                 }
             } finally {

@@ -267,13 +267,13 @@ object CodeExtractor {
 
     /** 走独立代码块的特殊模式：停用 = 跳过对应代码块；不支持改写正则（逻辑依赖捕获组）。 */
     private val BUILTIN_SPECIAL_RULES: List<BuiltinRule> = listOf(
-        BuiltinRule("PREFIXED_CODE", "前缀匹配（取件码: XXX）", PREFIXED_CODE,
+        BuiltinRule("PREFIXED_CODE", "前缀取码（含八位柜机码 7922-0881）", PREFIXED_CODE,
             CodeType.pickup_parcel, SCORE_PREFIXED, strong = true, editable = false),
         BuiltinRule("NEXT_LINE_CODE", "跨行前缀取码（标签在上一行）", NEXT_LINE_CODE,
             CodeType.pickup_parcel, SCORE_PREFIXED, strong = true, editable = false),
         BuiltinRule("LABEL_FOR_CODE", "标签行正下方取码", LABEL_FOR_CODE,
             CodeType.pickup_parcel, SCORE_PREFIXED, strong = true, editable = false),
-        BuiltinRule("PING_CODE", "凭条号句式（凭 3-7-4162 到…取）", PING_CODE,
+        BuiltinRule("PING_CODE", "凭码句式（凭码到/至站点取件）", PING_CODE,
             CodeType.pickup_parcel, SCORE_PREFIXED - PING_BASE_PENALTY, strong = true, editable = false),
         BuiltinRule("COUPON_NUMBER", "券号（券号: 长数字）", COUPON_NUMBER,
             CodeType.coupon, SCORE_PREFIXED, strong = true, editable = false)
@@ -292,7 +292,8 @@ object CodeExtractor {
         val type: String,
         val editable: Boolean,
         val enabled: Boolean,
-        val overridden: Boolean
+        val overridden: Boolean,
+        val overrideRejected: Boolean = false
     )
 
     /**
@@ -322,11 +323,14 @@ object CodeExtractor {
             BuiltinRuleInfo(
                 id = it.id,
                 label = it.label,
-                regex = ov.regexFor(it.id) ?: it.regex.pattern,
+                regex = if (it.editable) effectiveRegex(it, ov).pattern else it.regex.pattern,
                 type = it.type.name,
                 editable = it.editable,
                 enabled = !ov.isDisabled(it.id),
-                overridden = ov.regexFor(it.id) != null
+                overridden = it.editable && ov.regexFor(it.id) != null,
+                overrideRejected = it.editable && ov.regexFor(it.id)?.let { pattern ->
+                    runCatching { Regex(pattern) }.isFailure
+                } == true
             )
         }
     }
@@ -346,10 +350,16 @@ object CodeExtractor {
     }
 
     fun extract(lines: List<OCREngine.TextLine>, screenHeight: Int = 0, context: Context? = null, source: String = "screen"): List<ExtractedCode> {
+        val blocks = CodeContext.messageBlocks(lines)
+        if (blocks.size > 1) {
+            return blocks.flatMap { extract(it, screenHeight, context, source) }.distinctBy { it.code to it.type }
+        }
         // 文本预处理：全角→半角归一化 + 词级纠错表（参考同类产品实现 normalizeText / textCorrections）
         val lines = lines.map { it.copy(text = OcrCorrections.apply(normalizeText(it.text))) }
         val candidates = mutableListOf<Candidate>()
         val allText = lines.joinToString(" ") { it.text }
+        // 在候选生成、调试快照和学习之前挡住账户验证码，避免纯数字规则及自定义规则绕过。
+        if (AuthenticationCodeFilter.isAuthenticationOnly(allText)) return emptyList()
         val isFoodContext = FOOD_KEYWORDS.any { allText.contains(it, ignoreCase = true) }
         val isParcelContext = PARCEL_KEYWORDS.any { allText.contains(it) }
         val avgFontHeight = lines.mapNotNull { it.boundingBox?.height()?.toFloat() }
@@ -574,6 +584,7 @@ object CodeExtractor {
             }
         }
 
+        candidates.removeAll { AuthenticationCodeFilter.reject(it.code, allText) }
         if (candidates.isEmpty()) {
             // 无候选时也要留快照——这正是最需要调试面板的场景（此前直接 return，面板无数据）
             debugCapture(lines, emptyList(), emptyList(), allText, source, screenHeight, context)
