@@ -3,6 +3,8 @@ package com.pickupcode.app
 import android.app.Application
 import android.util.Log
 import com.pickupcode.app.data.AppDatabase
+import com.pickupcode.app.learner.CommonStationStore
+import com.pickupcode.app.learner.PatternLearner
 import com.pickupcode.app.notification.CodeNotificationManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +27,8 @@ class App : Application() {
     private fun cleanScreenshots() {
         appScope.launch(Dispatchers.IO) {
             try {
+                CommonStationStore.migrateLegacyAddresses(this@App)
+                PatternLearner.migrateLegacySamples(this@App)
                 AppDatabase.getInstance(this@App).repository.cleanScreenshots(this@App)
             } catch (e: Exception) {
                 Log.w("App", "截图治理失败", e)

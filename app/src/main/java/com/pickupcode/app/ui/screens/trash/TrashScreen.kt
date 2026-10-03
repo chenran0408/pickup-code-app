@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.pickupcode.app.data.AppDatabase
 import com.pickupcode.app.data.CodeHistory
+import com.pickupcode.app.service.CodeCompletion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -105,7 +106,7 @@ fun TrashScreen(onBack: () -> Unit) {
                             item = item,
                             onRestore = {
                                 scope.launch(Dispatchers.IO) {
-                                    db.repository.restore(item.id)
+                                    CodeCompletion.restore(context, db.repository, item.id)
                                 }
                             },
                             onDelete = {

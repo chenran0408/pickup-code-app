@@ -221,7 +221,14 @@ class MainActivity : ComponentActivity() {
                     lifecycleScope.launch(Dispatchers.IO) {
                         // 定向更新对应列，避免整行 update 用旧快照覆盖快速连改的其它字段（M20）
                         when (field) {
-                            EditField.CODE -> db.repository.updateCode(codeId, value)
+                            EditField.CODE -> {
+                                val result = com.pickupcode.app.service.CodeCompletion.changeCode(this@MainActivity, db.repository, codeId, value)
+                                if (result != com.pickupcode.app.service.CodeCompletion.EditCodeResult.SAVED) {
+                                    kotlinx.coroutines.withContext(Dispatchers.Main) {
+                                        Toast.makeText(this@MainActivity, if (result == com.pickupcode.app.service.CodeCompletion.EditCodeResult.DUPLICATE) "该站点已有相同待取码" else "码值无效或记录已不存在", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
                             EditField.SOURCE -> db.repository.updateSource(codeId, value)
                             EditField.CABINET -> db.repository.updateCabinet(codeId, value)
                             EditField.ADDRESS -> db.repository.updatePickupAddress(codeId, value)

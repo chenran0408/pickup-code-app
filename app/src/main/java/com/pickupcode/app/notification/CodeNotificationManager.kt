@@ -53,7 +53,9 @@ object CodeNotificationManager {
 
     /** 主通知池 id 登记表：code+type → 展示中的通知 id 集合。
      *  供「已取」按 code+type 取消全部相关通知（主通知 + 去重提示 + 提醒）。 */
-    private val activeNotifyIds = java.util.concurrent.ConcurrentHashMap<String, MutableSet<Int>>()
+    private const val NOTIFY_STATE_PREFS = "notif_state"
+    private const val ACTIVE_IDS_PREFIX = "active_ids_"
+    private val activeIdsLock = Any()
 
     /**
      * 进程内原子计数器；首次 nextNotifyId 时从 SP 恢复，避免三路径并发读改写同 id。
@@ -61,8 +63,20 @@ object CodeNotificationManager {
      */
     private val notifyIdCounter = java.util.concurrent.atomic.AtomicInteger(-1)
 
-    private fun trackNotifyId(type: CodeExtractor.CodeType, code: String, id: Int) {
-        activeNotifyIds.getOrPut("$type:$code") { java.util.concurrent.ConcurrentHashMap.newKeySet() }.add(id)
+    private fun activeIdsKey(type: CodeExtractor.CodeType, code: String): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest("$type:$code".toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        return ACTIVE_IDS_PREFIX + digest
+    }
+
+    private fun trackNotifyId(context: Context, type: CodeExtractor.CodeType, code: String, id: Int) {
+        synchronized(activeIdsLock) {
+            val prefs = context.getSharedPreferences(NOTIFY_STATE_PREFS, Context.MODE_PRIVATE)
+            val key = activeIdsKey(type, code)
+            val ids = prefs.getStringSet(key, emptySet()).orEmpty() + id.toString()
+            prefs.edit().putStringSet(key, ids).apply()
+        }
     }
 
     /**
@@ -113,9 +127,9 @@ object CodeNotificationManager {
         ((safeId(type, code) and 0x7fffffff) % SEGMENT_MODULUS) or DUP_SEGMENT_BASE
 
     /** 提醒闹钟请求码：按 kind 分到不同段位，避免同码「稍后提醒」与「到期提醒」共用请求码互相覆盖。
-     *  later → [0x20000000, 0x5fffffff]，expiry → [0x40000000, 0x7fffffff]，两段互斥。 */
+     *  later → [0x20000000, 0x3fffffff]，expiry → [0x40000000, 0x5fffffff]，两段互斥。 */
     private fun remindRequestCode(type: CodeExtractor.CodeType, code: String, kind: String): Int =
-        (safeId(type, code) and 0x3fffffff) or (if (kind == KIND_EXPIRY) 0x40000000 else 0x20000000)
+        ReminderRequestCodes.current(type.name, code, kind)
 
     private data class TypeStyle(val channelId: String, val iconLabel: String, val title: String)
 
@@ -142,7 +156,7 @@ object CodeNotificationManager {
         val pendingIntent = launchPendingIntent(context)
 
         val nid = nextNotifyId(context)
-        trackNotifyId(type, historyId?.let { "record:$it" } ?: code, nid)
+        trackNotifyId(context, type, historyId?.let { "record:$it" } ?: code, nid)
         // X/滑动删除走 DeleteIntent → NotificationDismissReceiver（与「忽略」按钮一致：仅收起通知，DB 记录保留）
         val deleteIntent = PendingIntent.getBroadcast(context, nid,
             Intent(context, NotificationDismissReceiver::class.java).apply {
@@ -189,7 +203,7 @@ object CodeNotificationManager {
      */
     fun dismissByCodeAndType(context: Context, type: CodeExtractor.CodeType, code: String) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
-        activeNotifyIds.remove("$type:$code")?.forEach { nm.cancel(it) }
+        cancelTracked(context, type, code, nm)
         nm.cancel(dupNotifyId(type, code))
         nm.cancel(remindNotifyId(type, code))
     }
@@ -200,17 +214,38 @@ object CodeNotificationManager {
         val key = "record:${item.id}"
         cancelRemind(context, item.code, type, historyId = item.id)
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
-        activeNotifyIds.remove("$type:$key")?.forEach { nm.cancel(it) }
+        cancelTracked(context, type, key, nm)
         nm.activeNotifications.filter { it.notification.extras.getLong("history_id", -1) == item.id }
             .forEach { nm.cancel(it.id) }
         nm.cancel(dupNotifyId(type, key))
         nm.cancel(remindNotifyId(type, key))
     }
 
+    private fun cancelTracked(context: Context, type: CodeExtractor.CodeType, code: String, nm: NotificationManager) {
+        synchronized(activeIdsLock) {
+            val prefs = context.getSharedPreferences(NOTIFY_STATE_PREFS, Context.MODE_PRIVATE)
+            val key = activeIdsKey(type, code)
+            prefs.getStringSet(key, emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }.forEach { nm.cancel(it) }
+            prefs.edit().remove(key).apply()
+        }
+    }
+
     fun dismissById(context: Context, id: Int) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         nm.cancel(id)
-        activeNotifyIds.values.forEach { it.remove(id) }
+        synchronized(activeIdsLock) {
+            val prefs = context.getSharedPreferences(NOTIFY_STATE_PREFS, Context.MODE_PRIVATE)
+            val editor = prefs.edit()
+            for ((key, value) in prefs.all) {
+                if (!key.startsWith(ACTIVE_IDS_PREFIX)) continue
+                val ids = (value as? Set<*>)?.filterIsInstance<String>()?.toSet().orEmpty()
+                if (id.toString() in ids) {
+                    val remaining = ids - id.toString()
+                    if (remaining.isEmpty()) editor.remove(key) else editor.putStringSet(key, remaining)
+                }
+            }
+            editor.apply()
+        }
     }
 
     // ---------------------------------------------------------------
@@ -243,6 +278,7 @@ object CodeNotificationManager {
     private fun scheduleRemind(context: Context, code: String, type: CodeExtractor.CodeType,
                                source: String, delayMs: Long, kind: String, historyId: Long? = null) {
         val alarm = context.getSystemService(AlarmManager::class.java) ?: return
+        cancelRemindKind(context, alarm, historyId?.let { "record:$it" } ?: code, type, kind)
         val intent = Intent(context, RemindReceiver::class.java).apply {
             putExtra(EXTRA_REMIND_CODE, code)
             putExtra(EXTRA_REMIND_TYPE, type.name)
@@ -310,10 +346,20 @@ object CodeNotificationManager {
     /** 取消已设置的提醒闹钟（用户提前取件时调用）：later 与 expiry 两类一并取消。 */
     fun cancelRemind(context: Context, code: String, type: CodeExtractor.CodeType, historyId: Long? = null) {
         val alarm = context.getSystemService(AlarmManager::class.java) ?: return
-        val intent = Intent(context, RemindReceiver::class.java)
         for (kind in listOf(KIND_LATER, KIND_EXPIRY)) {
-            val pi = PendingIntent.getBroadcast(context, remindRequestCode(type, historyId?.let { "record:$it" } ?: code, kind), intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            cancelRemindKind(context, alarm, historyId?.let { "record:$it" } ?: code, type, kind)
+            // 升级前提醒按码值建立；同时清除旧请求码，新的按记录 ID 独立操作。
+            if (historyId != null) cancelRemindKind(context, alarm, code, type, kind)
+        }
+    }
+
+    private fun cancelRemindKind(context: Context, alarm: AlarmManager, code: String,
+                                 type: CodeExtractor.CodeType, kind: String) {
+        val intent = Intent(context, RemindReceiver::class.java)
+        for (requestCode in ReminderRequestCodes.cancellationCandidates(type.name, code, kind)) {
+            // 只查找已有的广播，不创建空提醒或改写旧提醒 extras。
+            val pi = PendingIntent.getBroadcast(context, requestCode, intent,
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE) ?: continue
             alarm.cancel(pi)
             pi.cancel()
         }

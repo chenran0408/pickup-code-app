@@ -40,6 +40,9 @@ interface CodeHistoryDao {
     @Query("SELECT * FROM code_history WHERE id = :id")
     suspend fun getByIdSuspend(id: Long): CodeHistory?
 
+    @Query("SELECT * FROM code_history WHERE code = :code AND type = :type AND isActive = 0 AND doneAt = :doneAt")
+    suspend fun getArchivedByAction(code: String, type: String, doneAt: Long): List<CodeHistory>
+
     @Query("SELECT * FROM code_history WHERE isActive = 1 ORDER BY timestamp DESC LIMIT 5")
     fun getRecentActive(): Flow<List<CodeHistory>>
 
@@ -128,6 +131,9 @@ interface CodeHistoryDao {
     /** 仍被任意记录（含回收站）引用的截图路径 → 用于判定哪些文件是"孤儿"。 */
     @Query("SELECT screenshotPath FROM code_history WHERE screenshotPath != ''")
     suspend fun getAllScreenshotPaths(): List<String>
+
+    @Query("SELECT COUNT(*) FROM code_history WHERE screenshotPath = :path")
+    suspend fun countScreenshotReferences(path: String): Int
 
     /** 指定记录引用的截图路径（供删除记录时一并回收文件，避免 cacheDir 孤儿）。 */
     @Query("SELECT screenshotPath FROM code_history WHERE id IN (:ids) AND screenshotPath != ''")

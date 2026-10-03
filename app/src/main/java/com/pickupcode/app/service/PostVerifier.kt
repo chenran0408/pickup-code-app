@@ -52,7 +52,7 @@ object PostVerifier {
                 }
             }
         }
-        return if (res.success && res.pickUpCode != null) res else null
+        return if (res.success && res.pickUpCode != null && res.pickUpCode in ocrCodes) res else null
     }
     /** 每个 ID 只验证其当前地址，晚到的旧地址结果无法污染新地址。 */
     suspend fun verifySaved(

@@ -2,6 +2,8 @@ package com.pickupcode.app.learner
 
 import android.content.Context
 import android.util.Log
+import android.util.AtomicFile
+import com.pickupcode.app.preferences.SecretCipher
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -400,14 +402,59 @@ object PatternLearner {
 
     // 对 JSON 样本文件的写操作统一加锁，避免并发 read-modify-write 竞态导致丢失样本
     private val unmatchedLock = Any()
-private val verifiedAddrLock = Any()
+    private val verifiedAddrLock = Any()
+
+    fun migrateLegacySamples(context: Context) {
+        for ((lock, name) in listOf(
+            unmatchedLock to "unmatched_samples.json",
+            verifiedAddrLock to "verified_addresses.json"
+        )) synchronized(lock) {
+            val file = File(context.filesDir, name)
+            if (file.exists()) try {
+                val stored = file.readText()
+                if (!SecretCipher.isEncrypted(stored)) writeEncryptedFile(file, SecretCipher.encrypt(stored, name))
+            } catch (e: Exception) {
+                Log.e(TAG, "旧样本加密迁移失败: $name", e)
+            }
+        }
+    }
+
+    private fun readSensitiveArray(file: File): JSONArray? =
+        try {
+            val stored = file.readText()
+            val plain = SecretCipher.decrypt(stored, file.name)
+            if (stored.isNotEmpty() && plain.isEmpty()) null else JSONArray(plain)
+        } catch (e: Exception) {
+            Log.w(TAG, "敏感样本读取失败，保留原文件 ${file.name}", e)
+            null
+        }
+
+    private fun writeEncryptedFile(file: File, encrypted: String) {
+        val atomic = AtomicFile(file)
+        val stream = atomic.startWrite()
+        try {
+            stream.write(encrypted.toByteArray(Charsets.UTF_8))
+            atomic.finishWrite(stream)
+        } catch (e: Exception) {
+            atomic.failWrite(stream)
+            throw e
+        }
+    }
+
+    private fun writeSensitiveArray(file: File, array: JSONArray) {
+        try {
+            writeEncryptedFile(file, SecretCipher.encrypt(array.toString(), file.name))
+        } catch (e: Exception) {
+            Log.e(TAG, "敏感样本加密失败，放弃写入 ${file.name}", e)
+        }
+    }
 
     private fun appendUnmatched(context: Context, rawText: String, source: String = "unknown") {
         if (rawText.isBlank()) return
         synchronized(unmatchedLock) {
             val file = File(context.filesDir, "unmatched_samples.json")
             val arr = if (file.exists()) {
-                try { JSONArray(file.readText()) } catch (_: Exception) { JSONArray() }
+                readSensitiveArray(file) ?: return
             } else JSONArray()
 
             // Keep only recent + relevant text
@@ -430,7 +477,7 @@ private val verifiedAddrLock = Any()
 
             // Trim to max
             while (arr.length() > MAX_UNMATCHED) arr.remove(0)
-            file.writeText(arr.toString())
+            writeSensitiveArray(file, arr)
         }
     }
 
@@ -438,7 +485,7 @@ private val verifiedAddrLock = Any()
         val file = File(context.filesDir, "unmatched_samples.json")
         if (!file.exists()) return emptyList()
         return try {
-            val arr = JSONArray(file.readText())
+            val arr = readSensitiveArray(file) ?: return emptyList()
             (0 until arr.length()).map { arr.getJSONObject(it) }
         } catch (_: Exception) { emptyList() }
     }
@@ -461,7 +508,7 @@ private val verifiedAddrLock = Any()
         synchronized(verifiedAddrLock) {
             val file = File(context.filesDir, "verified_addresses.json")
             val arr = if (file.exists()) {
-                try { JSONArray(file.readText()) } catch (_: Exception) { JSONArray() }
+                readSensitiveArray(file) ?: return
             } else JSONArray()
             arr.put(JSONObject().apply {
                 put("address", address)
@@ -469,7 +516,7 @@ private val verifiedAddrLock = Any()
                 put("ts", System.currentTimeMillis() / 1000)
             })
             while (arr.length() > 50) arr.remove(0)
-            file.writeText(arr.toString())
+            writeSensitiveArray(file, arr)
         }
     }
 
