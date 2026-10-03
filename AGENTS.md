@@ -42,7 +42,7 @@
 
 macOS / Linux 使用 `./gradlew`。CI 执行 lint、debug / release 构建和单测。按改动范围完成相关验证；环境缺失时说明具体阻碍，不将未运行的检查报告为通过。
 
-Debug APK 位于 `app/build/outputs/apk/debug/`，按 `arm64-v8a` 与 `armeabi-v7a` 拆分。Release 启用 R8 和资源收缩；未配置签名时输出 unsigned APK。
+Debug APK 位于 `app/build/outputs/apk/debug/`，仅生成 `arm64-v8a`。Release 启用 R8、资源收缩和原生库压缩；未配置签名时输出 unsigned APK。
 
 ## 修改约定
 

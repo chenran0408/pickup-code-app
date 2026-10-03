@@ -2,9 +2,9 @@
 
  > 自动识别截屏或分享图片中的取餐码、取件码和券码，通知提醒 + 一键标记已取。数据全部留在本机。
 
-[![Build and Test](https://github.com/zixij644-elaborate/pickup-code-app/actions/workflows/ci.yml/badge.svg)](https://github.com/zixij644-elaborate/pickup-code-app/actions/workflows/ci.yml)
-[![Downloads](https://img.shields.io/github/downloads/zixij644-elaborate/pickup-code-app/total)](https://github.com/zixij644-elaborate/pickup-code-app/releases)
-[![Latest release](https://img.shields.io/github/v/release/zixij644-elaborate/pickup-code-app)](https://github.com/zixij644-elaborate/pickup-code-app/releases/latest)
+[![Build and Test](https://github.com/chenran0408/pickup-code-app/actions/workflows/ci.yml/badge.svg)](https://github.com/chenran0408/pickup-code-app/actions/workflows/ci.yml)
+[![Downloads](https://img.shields.io/github/downloads/zixij644-elaborate/pickup-code-app/total)](https://github.com/chenran0408/pickup-code-app/releases)
+[![Latest release](https://img.shields.io/github/v/release/zixij644-elaborate/pickup-code-app)](https://github.com/chenran0408/pickup-code-app/releases/latest)
 
 <div align="center">
   <img src="screenshots/home.jpg" width="30%" alt="主页：取件码/取餐码列表与筛选" />
@@ -50,17 +50,18 @@
 - **结构化定位**：品牌+快递/速递/物流后缀识别 + 方括号品牌 + 邻近行匹配
 - **品牌图标**：识别到的来源显示对应品牌单色图标（快递、外卖、茶饮、餐饮共 24 个品牌），统一跟随主题色
 
-### 待取清单
-- 主页默认按地点展示待取的取件码和取餐码，显示待取总数及地点数量。
+### 记录列表
+- 主页默认显示全部记录（含券码和已取历史），可筛选已取、过期，按时间或地址分组。
 - 已填写地址的分组支持「本站已取」，确认后整组归档，可通过提示条撤销。
-- 「全部记录」可查看券码，原有类型筛选和时间分组继续可用。
+- 批量已取只操作本组可见的活跃记录；已取记录可恢复，不再随回收站自动删除。
 - 「淘宝码」「菜鸟码」「拼多多码」三个大按钮固定在主页标题栏下方，直接打开对应平台，滚动清单时也可使用；详情页提供同样的入口。
 
 ### 数据管理
 - **上下文去重**：结合订单/运单、地址、来源和时间合并；不同站点的同码保留，已取操作按记录执行
 - **重复通知**：明确属于同一取件记录的重复识别合并更新，并推送记录更新提醒
 - **稍后提醒**：通知栏一键稍后提醒，1 小时后重新推送，取件后自动取消
-- **回收站**：标记已取后保留 24 小时，可撤销可恢复
+- **已取历史**：单独保留，可撤销或恢复；删除操作才进入回收站，24 小时后清理
+- **识别反馈**：粘贴误识别/漏识别消息，生成可编辑的随机数字脱敏样例，人工确认后保存反馈文件
 - **地图验证**：提取地址后自动调用地理编码验证真实性（支持高德 API）
 - **截图治理**：删除记录时一并回收截图文件；启动时自动清理孤儿截图、超过 30 天的截图，并把截图目录控制在 50 MB 以内
 - **回收站清理**：过期记录连同其截图一起删除
@@ -79,14 +80,13 @@
 
 ## 下载
 
-到 [Releases](https://github.com/zixij644-elaborate/pickup-code-app/releases/latest) 下载对应架构的 APK：
+到 [Releases](https://github.com/chenran0408/pickup-code-app/releases/latest) 下载对应架构的 APK：
 
 | 版本 | 适用设备 | 直链 |
 |---|---|---|
-| app-arm64-v8a-release.apk | 大部分新手机（含 vivo/小米等 arm64 机型） | [下载](https://github.com/zixij644-elaborate/pickup-code-app/releases/latest/download/app-arm64-v8a-release.apk) |
-| app-armeabi-v7a-release.apk | 较老 32 位设备 | [下载](https://github.com/zixij644-elaborate/pickup-code-app/releases/latest/download/app-armeabi-v7a-release.apk) |
+| app-arm64-v8a-release.apk | 大部分新手机（含 vivo/小米等 arm64 机型） | [下载](https://github.com/chenran0408/pickup-code-app/releases/latest/download/app-arm64-v8a-release.apk) |
 
- > 不确定选哪个？近几年的手机基本都是 arm64-v8a。每个 Release 都附带 SHA-256 校验文件。
+ > 从 1.2.0 起只提供 arm64-v8a 包。发布构建启用 R8、资源收缩和原生库压缩，保留离线 OCR / 条码识别。未正式签名发布的版本请使用本地测试产物。
 
 ## 快速开始
 
@@ -177,3 +177,5 @@ app/src/main/java/com/pickupcode/app/
 [GPL-3.0](LICENSE)
 
 界面与品牌图标的来源、署名及各自许可证见 **[ICONS.md](ICONS.md)**。
+
+本项目 fork 自 [zixij644-elaborate/pickup-code-app](https://github.com/zixij644-elaborate/pickup-code-app)，保留原项目许可与作者归属。1.2.0 更新与验证见 [更新说明](docs/UPDATE_1.2.0.md)。

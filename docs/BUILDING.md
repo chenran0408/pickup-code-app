@@ -60,11 +60,10 @@ gradle wrapper --gradle-version 8.9 --distribution-type bin
 
 ## 构建产物
 
-Debug APK 输出到 `app/build/outputs/apk/debug/`。项目开启了 ABI 拆分（仅保留 arm64-v8a 与 armeabi-v7a），因此会生成两个按架构拆分的 APK：
+Debug APK 输出到 `app/build/outputs/apk/debug/`。项目仅生成 arm64-v8a APK：
 
 ```text
 app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
-app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk
 ```
 
 将 APK 安装到设备即可使用（Debug 包使用自动签名，可直接 `adb install`，按你的设备架构选择对应文件）：
@@ -136,3 +135,11 @@ sdkmanager "build-tools;34.0.0" "platforms;android-35"
 | AI 增强识别 | 设置 → AI 识别 | 任意 OpenAI 兼容 API 的 API 地址、API Key、模型名称 |
 | 地图验证 | 设置 → 地图验证 | 高德 API Key（可选） |
 | 快递100 验证 | 设置 → 快递100验证 | 快递100 API Key |
+
+## 1.2.0 压缩与复现
+
+Release 已启用 R8 混淆、代码裁剪、资源收缩及 arm64 原生库压缩。ML Kit 中文 OCR 与条码离线模型保留。
+`./gradlew assembleRelease -PcompressNativeLibraries=false` 可生成未压缩原生库的对照包；默认 `assembleRelease` 启用压缩。
+比较时须分别保存产物，使用同版本、同源码和同签名条件。原生库安装时由系统解压，因此 APK 下载体积减少不等于安装占用同比下降。
+每次涉及这些选项须真机验证离线 OCR 和条码识别，不能仅以构建通过作为功能验证。
+正式发布仍需配置自己的 keystore；调试密钥签名的优化测试包只用于当前测试设备。不要更换密钥后卸载旧版解决升级问题，这会丢失记录。

@@ -64,12 +64,21 @@ android {
         }
     }
 
-    // 按 CPU 架构拆分：只打真机常用的 arm64/armv7，砍掉 x86 等用不上的原生库，显著减重
+    packaging {
+        jniLibs {
+            // 压缩离线 OCR / 条码原生库，安装时由系统解压；减少下载大小，保留离线能力。
+            // -PcompressNativeLibraries=false 可复现未压缩基线，比较同版本产物。
+            useLegacyPackaging = providers.gradleProperty("compressNativeLibraries")
+                .map { it.toBooleanStrict() }.getOrElse(true)
+        }
+    }
+
+    // 仅发布 arm64，避免为不再支持的 32 位设备生成额外包。
     splits {
         abi {
             isEnable = true
             reset()
-            include("arm64-v8a", "armeabi-v7a")
+            include("arm64-v8a")
             isUniversalApk = false
             // 注：AGP 8.x 已移除 splits.abi.versionCodes（3.x/4.x 旧 API）。当前按架构拆包、
             // 各分包共用默认 versionCode，适合侧载分发；若需上架 Play，改用 App Bundle（AAB）由 Play 自动分发。
