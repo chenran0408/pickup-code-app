@@ -21,6 +21,7 @@ class CodeRepositoryTest {
         override suspend fun saveOrUpdate(history: CodeHistory) = super<CodeHistoryDao>.saveOrUpdate(history)
         override suspend fun archiveBatch(ids: List<Long>, doneAt: Long) = super<CodeHistoryDao>.archiveBatch(ids, doneAt)
         override suspend fun enrichIfCurrent(id: Long, fresh: CodeHistory) = super<CodeHistoryDao>.enrichIfCurrent(id, fresh)
+        override suspend fun importPendingBatch(records: List<CodeHistory>) = super<CodeHistoryDao>.importPendingBatch(records)
         override suspend fun getScreenshotPathsByIds(ids: List<Long>) = ids.mapNotNull { rows[it]?.screenshotPath }.filter { it.isNotBlank() }
         override suspend fun deleteById(id: Long) { rows.remove(id) }
         override suspend fun deleteByIds(ids: List<Long>) { ids.forEach { rows.remove(it) } }
@@ -122,5 +123,15 @@ class CodeRepositoryTest {
             repo.releaseScreenshots(listOf(file.path))
             assertFalse(file.exists())
         } finally { file.delete() }
+    }
+
+    @Test fun `import is repeatable without overwriting and keeps different addresses`() = runBlocking {
+        val dao = MemoryDao(); val repo = CodeRepository(dao)
+        val original = record("7-3-5268", "青禾村24排4号").copy(rawTextSnippet = "用户原记录")
+        val otherAddress = original.copy(pickupAddress = "青禾村24排5号", rawTextSnippet = "分享文本导入")
+        assertEquals(1 to 0, repo.importPendingBatch(listOf(original)))
+        assertEquals(1 to 1, repo.importPendingBatch(listOf(original.copy(rawTextSnippet = "不应覆盖"), otherAddress)))
+        assertEquals("用户原记录", dao.rows.getValue(1).rawTextSnippet)
+        assertEquals(2, dao.rows.size)
     }
 }

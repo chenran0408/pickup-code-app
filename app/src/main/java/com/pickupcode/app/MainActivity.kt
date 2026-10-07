@@ -172,7 +172,8 @@ class MainActivity : ComponentActivity() {
                         onConfirm = { code, type, source ->
                             saveManualCode(code, type, source)
                             showManualDialog = false
-                        }
+                        },
+                        onImport = { entries, onComplete -> importSharedCodes(entries, onComplete) }
                     )
                 }
             }
@@ -284,6 +285,44 @@ class MainActivity : ComponentActivity() {
             } else {
                 com.pickupcode.app.notification.CodeNotificationManager
                     .show(this@MainActivity, code, codeType, source, historyId = save.id)
+            }
+        }
+    }
+
+    private fun importSharedCodes(
+        entries: List<com.pickupcode.app.ui.screens.home.PendingShareText.Entry>,
+        onComplete: (Boolean) -> Unit
+    ) {
+        lifecycleScope.launch {
+            try {
+                val (inserted, skipped) = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    val records = entries.map { entry ->
+                        CodeHistory(
+                            code = entry.code,
+                            type = entry.type,
+                            source = entry.source,
+                            pickupAddress = entry.address,
+                            cabinetNumber = entry.cabinet,
+                            expiryTime = if (entry.expired) 1L else 0L,
+                            rawTextSnippet = "从分享文本导入",
+                            userEditedFields = com.pickupcode.app.data.RecordMergePolicy.CODE or
+                                com.pickupcode.app.data.RecordMergePolicy.SOURCE or
+                                com.pickupcode.app.data.RecordMergePolicy.ADDRESS or
+                                com.pickupcode.app.data.RecordMergePolicy.CABINET,
+                            recognitionOrigin = "user",
+                            addressOrigin = "user"
+                        )
+                    }
+                    AppDatabase.getInstance(this@MainActivity).repository.importPendingBatch(records)
+                }
+                Toast.makeText(this@MainActivity, "已导入 $inserted 条，跳过重复 $skipped 条", Toast.LENGTH_LONG).show()
+                onComplete(true)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("MainActivity", "导入分享文本失败", e)
+                Toast.makeText(this@MainActivity, "导入失败，请检查文本后重试", Toast.LENGTH_LONG).show()
+                onComplete(false)
             }
         }
     }

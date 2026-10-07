@@ -29,6 +29,9 @@ class CodeRepository(private val dao: CodeHistoryDao) {
     suspend fun save(history: CodeHistory): CodeHistoryDao.SaveResult =
         screenshotMutex.withLock { dao.saveOrUpdate(history) }
 
+    suspend fun importPendingBatch(records: List<CodeHistory>): Pair<Int, Int> =
+        screenshotMutex.withLock { dao.importPendingBatch(records) }
+
     suspend fun findByCodeAndType(code: String, type: String): CodeHistory? =
         dao.findByCodeAndType(code, type)
 

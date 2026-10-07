@@ -77,6 +77,22 @@ interface CodeHistoryDao {
     @Query("SELECT * FROM code_history WHERE code = :code AND type = :type AND isActive = 1 ORDER BY timestamp DESC")
     suspend fun mergeCandidates(code: String, type: String): List<CodeHistory>
 
+    /** 整段导入在同一事务中完成；仅跳过字段完全相同的活跃记录，不改写用户已有记录。 */
+    @Transaction
+    suspend fun importPendingBatch(records: List<CodeHistory>): Pair<Int, Int> {
+        var inserted = 0
+        var skipped = 0
+        records.forEach { incoming ->
+            val exists = mergeCandidates(incoming.code, incoming.type).any { old ->
+                AddressNormalizer.key(old.pickupAddress) == AddressNormalizer.key(incoming.pickupAddress) &&
+                    old.source.trim() == incoming.source.trim() &&
+                    old.cabinetNumber.trim() == incoming.cabinetNumber.trim()
+            }
+            if (exists) skipped++ else { insert(incoming); inserted++ }
+        }
+        return inserted to skipped
+    }
+
     @Query("SELECT COUNT(*) FROM code_history WHERE screenshotPath = :path")
     suspend fun screenshotReferences(path: String): Int
 
