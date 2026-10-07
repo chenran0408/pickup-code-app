@@ -28,10 +28,10 @@ class App : Application() {
     private fun cleanScreenshots() {
         appScope.launch(Dispatchers.IO) {
             try {
-                // 首页首次读取记录需要磁盘带宽；维护任务稍后执行，避免冷启动时争用同一数据库和文件系统。
-                delay(2_000)
                 CommonStationStore.migrateLegacyAddresses(this@App)
                 PatternLearner.migrateLegacySamples(this@App)
+                // 加密迁移仍立即进行；截图治理稍后执行，避免与首页首次读库争用数据库和文件系统。
+                delay(2_000)
                 AppDatabase.getInstance(this@App).repository.cleanScreenshots(this@App)
             } catch (e: Exception) {
                 Log.w("App", "截图治理失败", e)
