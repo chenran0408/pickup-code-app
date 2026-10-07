@@ -26,6 +26,7 @@ fun ManualCodeDialog(
     var source by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf<String?>(null) }
     var importing by remember { mutableStateOf(false) }
+    var previewingClipboard by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
     val clipboardText = remember { clipboard.getText()?.text?.toString().orEmpty() }
     val clipboardParsed = remember(clipboardText) { PendingShareText.parse(clipboardText) }
@@ -58,18 +59,24 @@ fun ManualCodeDialog(
         }
     }
 
+    fun leavePreviewOrDismiss() {
+        if (previewingClipboard) {
+            previewingClipboard = false
+            input = ""
+        } else onDismiss()
+    }
+
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { leavePreviewOrDismiss() },
         title = {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("添加码")
+                Text(if (previewingClipboard) "确认导入" else "添加码")
                 if (!isImportText && clipboardParsed.entries.isNotEmpty()) {
                     TextButton(onClick = {
-                        if (clipboardParsed.legacyCount == 0) startImport(clipboardParsed.entries)
-                        else input = clipboardText.take(30_001)
+                        input = clipboardText.take(30_001)
+                        previewingClipboard = true
                     }, enabled = !importing) {
-                        Text(if (clipboardParsed.legacyCount == 0)
-                            "导入 ${clipboardParsed.entries.size} 条" else "核对旧版")
+                        Text("导入剪贴板")
                     }
                 }
             }
@@ -77,21 +84,27 @@ fun ManualCodeDialog(
         text = {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it.take(30_001) },
-                    label = { Text(if (isImportText) "分享文本" else "取件码 / 取餐码") },
-                    placeholder = { Text("输入码值，或粘贴分享导出的整段文本") },
-                    singleLine = !isImportText,
-                    maxLines = if (isImportText) 7 else 1,
-                    modifier = Modifier.fillMaxWidth().focusRequester(focus)
-                )
+                if (previewingClipboard) {
+                    Text("剪贴板中识别到 ${entries.size} 条，请核对后导入",
+                        style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { input = it.take(30_001) },
+                        label = { Text(if (isImportText) "分享文本" else "取件码 / 取餐码") },
+                        placeholder = { Text("输入码值，或粘贴分享导出的整段文本") },
+                        singleLine = !isImportText,
+                        maxLines = if (isImportText) 7 else 1,
+                        modifier = Modifier.fillMaxWidth().focusRequester(focus)
+                    )
+                }
 
                 if (isImportText) {
                     if (parsed.error != null) Text(parsed.error,
                         color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     else {
-                        Text("识别到 ${entries.size} 条，导入前可点类型修改", style = MaterialTheme.typography.titleSmall)
+                        if (!previewingClipboard) Text("识别到 ${entries.size} 条，导入前可点类型修改",
+                            style = MaterialTheme.typography.titleSmall)
                         if (parsed.legacyCount > 0) Text("旧版文本有 ${parsed.legacyCount} 条缺少类型，请核对取件/取餐。",
                             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         if (invalidEntry >= 0) Text("第 ${invalidEntry + 1} 条码值不适用于所选类型",
@@ -99,8 +112,11 @@ fun ManualCodeDialog(
                         entries.forEachIndexed { index, entry ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Column(Modifier.weight(1f)) {
-                                    Text("${entry.source} · ${entry.code}", style = MaterialTheme.typography.bodyMedium)
-                                    Text(entry.address.ifBlank { "未填地址" },
+                                    Text("${entry.source} · ${entry.code}" +
+                                        entry.cabinet.takeIf { it.isNotBlank() }?.let { "（$it）" }.orEmpty(),
+                                        style = MaterialTheme.typography.bodyMedium)
+                                    Text(entry.address.ifBlank { "未填地址" } +
+                                        if (entry.expired) " · 已过期" else "",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
@@ -127,7 +143,7 @@ fun ManualCodeDialog(
             if (isImportText) {
                 TextButton(onClick = { startImport(entries) },
                     enabled = parsed.error == null && entries.isNotEmpty() && invalidEntry < 0 && !importing) {
-                    Text(if (importing) "导入中…" else "导入 ${entries.size} 条")
+                    Text(if (importing) "导入中…" else "确认导入")
                 }
             } else {
                 TextButton(onClick = {
@@ -139,6 +155,8 @@ fun ManualCodeDialog(
                 }, enabled = validSingle) { Text(if (input.isNotBlank() && !validSingle) "格式不符" else "添加") }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = { leavePreviewOrDismiss() }) {
+            Text(if (previewingClipboard) "返回" else "取消")
+        } }
     )
 }
