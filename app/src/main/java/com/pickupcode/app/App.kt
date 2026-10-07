@@ -9,6 +9,7 @@ import com.pickupcode.app.notification.CodeNotificationManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class App : Application() {
@@ -29,6 +30,8 @@ class App : Application() {
             try {
                 CommonStationStore.migrateLegacyAddresses(this@App)
                 PatternLearner.migrateLegacySamples(this@App)
+                // 加密迁移仍立即进行；截图治理稍后执行，避免与首页首次读库争用数据库和文件系统。
+                delay(2_000)
                 AppDatabase.getInstance(this@App).repository.cleanScreenshots(this@App)
             } catch (e: Exception) {
                 Log.w("App", "截图治理失败", e)

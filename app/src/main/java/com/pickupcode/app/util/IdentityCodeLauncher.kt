@@ -105,18 +105,18 @@ object IdentityCodeLauncher {
         appLabel: String,
         vararg intents: Intent
     ): Result {
-        if (!isInstalled(context, pkg)) return Result.NotInstalled
-
-        val errors = mutableListOf<String>()
+        // 已安装是高频路径：先直接发送已限定包名的深链，省去每次点击前的 PackageManager IPC。
+        val errors = mutableListOf<Exception>()
         for (intent in intents) {
             try {
                 context.startActivity(intent)
                 return Result.Opened
             } catch (e: Exception) {
-                errors += e.javaClass.simpleName
-                Log.w(TAG, "$appLabel 深链失败（${e.javaClass.simpleName}），尝试下一级", e)
+                errors += e
             }
         }
+        if (!isInstalled(context, pkg)) return Result.NotInstalled
+        errors.forEach { Log.w(TAG, "$appLabel 深链失败（${it.javaClass.simpleName}），尝试下一级", it) }
 
         // 最后兜底：打开 App 首页（用户自己点进身份码）
         try {
@@ -127,8 +127,8 @@ object IdentityCodeLauncher {
                 return Result.Failed("未能直达身份码，已打开$appLabel 首页；请点「身份码」入口")
             }
         } catch (e: Exception) {
-            errors += e.javaClass.simpleName
+            errors += e
         }
-        return Result.Failed("打开$appLabel 失败（${errors.distinct().joinToString("/")}）")
+        return Result.Failed("打开$appLabel 失败（${errors.map { it.javaClass.simpleName }.distinct().joinToString("/")}）")
     }
 }

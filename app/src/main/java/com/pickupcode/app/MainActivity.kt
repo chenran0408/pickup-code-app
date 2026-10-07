@@ -71,8 +71,7 @@ class MainActivity : ComponentActivity() {
                 android.content.pm.PackageManager.PERMISSION_GRANTED
         } else true
 
-        // Medium-2: 组合期不再同步读无障碍状态（每次重组重复 binder 调用）；onCreate 先赋值一次，onResume 持续刷新
-        refreshAccessibilityStates()
+        // onResume 会立即读取一次；这里不重复做系统 binder 查询，减少冷启动主线程工作。
         // 冷启动竞态：无障碍服务绑定可能晚于 Activity 创建（几百 ms~秒级），1.5s 后补刷一次
         Handler(Looper.getMainLooper()).postDelayed({ refreshAccessibilityStates() }, 1500)
 
