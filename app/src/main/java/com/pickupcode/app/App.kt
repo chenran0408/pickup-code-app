@@ -9,6 +9,7 @@ import com.pickupcode.app.notification.CodeNotificationManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class App : Application() {
@@ -27,6 +28,8 @@ class App : Application() {
     private fun cleanScreenshots() {
         appScope.launch(Dispatchers.IO) {
             try {
+                // 首页首次读取记录需要磁盘带宽；维护任务稍后执行，避免冷启动时争用同一数据库和文件系统。
+                delay(2_000)
                 CommonStationStore.migrateLegacyAddresses(this@App)
                 PatternLearner.migrateLegacySamples(this@App)
                 AppDatabase.getInstance(this@App).repository.cleanScreenshots(this@App)

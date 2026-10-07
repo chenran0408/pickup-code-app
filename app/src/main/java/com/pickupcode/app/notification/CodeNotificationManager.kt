@@ -18,24 +18,20 @@ object CodeNotificationManager {
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        manager.createNotificationChannel(
+        manager.createNotificationChannels(listOf(
             NotificationChannel(CHANNEL_FOOD, "取餐码", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "取餐码提醒"
                 setShowBadge(true)
-            }
-        )
-        manager.createNotificationChannel(
+            },
             NotificationChannel(CHANNEL_PARCEL, "取件码", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "快递取件码提醒"
                 setShowBadge(true)
-            }
-        )
-        manager.createNotificationChannel(
+            },
             NotificationChannel(CHANNEL_COUPON, "券码", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "二维码/条码券码提醒"
                 setShowBadge(true)
             }
-        )
+        ))
     }
 
     /**
