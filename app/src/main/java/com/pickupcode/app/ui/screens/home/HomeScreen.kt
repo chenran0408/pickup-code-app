@@ -196,7 +196,7 @@ fun HomeScreen(
     confirmGroup?.let { items ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmGroup = null },
-            title = { Text("本站全部已取？") },
+            title = { Text("全部标记已取？") },
             text = { Text("将 ${items.first().pickupAddress} 的 ${items.size} 条记录标记为已取，可撤销。") },
             confirmButton = {
                 TextButton(onClick = {

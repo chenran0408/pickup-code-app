@@ -111,6 +111,7 @@ fun CodeDetailScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            com.pickupcode.app.ui.components.RecordStatusBadge(item)
             com.pickupcode.app.ui.components.PickupIdentityCard()
             if (item.recognitionOrigin == "ai") {
                 Text("AI 补充识别 · 请核对码值", color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -216,30 +216,45 @@ object ShareReceiver {
 
         // 多图分享暂不支持：明确提示一条通知，不再静默丢弃无感知
         if (action == Intent.ACTION_SEND_MULTIPLE) {
+            val sessionId = SharedImageRecognition.session.start()
+            SharedImageRecognition.session.complete(sessionId, message = "暂不支持多图分享，请一次分享一张图片")
             showMultiShareHint(context)
             return
         }
 
+        val imageSession = if (action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true)
+            SharedImageRecognition.session.start() else null
+        // 分享读取与保存使用进程作用域，不持有已销毁的 Activity。
+        val appContext = context.applicationContext
         scope.launch {
-            val settings = withContext(Dispatchers.IO) {
-                AppPreferences.observe(context).first()
+            try {
+                val settings = withContext(Dispatchers.IO) {
+                    AppPreferences.observe(appContext).first()
+                }
+                val isShare = action == Intent.ACTION_SEND
+                val isProcessText = action == Intent.ACTION_PROCESS_TEXT
+                if (isShare && !settings.enableIntentReceive) {
+                    Log.d(TAG, "Intent receive disabled, skip")
+                    imageSession?.let { SharedImageRecognition.session.complete(it, message = "图片分享识别已关闭，请在设置中开启") }
+                    return@launch
+                }
+                if (isProcessText && !settings.enableShareDetection) {
+                    Log.d(TAG, "Share detection disabled, skip")
+                    return@launch
+                }
+                Log.d(TAG, "Received: action=$action, type=${intent.type}")
+                dispatch(appContext, intent, isProcessText, scope, imageSession)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                imageSession?.let { SharedImageRecognition.session.complete(it, message = "识别已中断，请重新分享图片") }
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "分享识别失败 (${e.javaClass.simpleName})")
+                imageSession?.let { SharedImageRecognition.session.complete(it, message = "图片识别失败，请重新分享或手动添加") }
             }
-            val isShare = action == Intent.ACTION_SEND
-            val isProcessText = action == Intent.ACTION_PROCESS_TEXT
-            if (isShare && !settings.enableIntentReceive) {
-                Log.d(TAG, "Intent receive disabled, skip")
-                return@launch
-            }
-            if (isProcessText && !settings.enableShareDetection) {
-                Log.d(TAG, "Share detection disabled, skip")
-                return@launch
-            }
-            Log.d(TAG, "Received: action=$action, type=${intent.type}")
-            dispatch(context, intent, isProcessText, scope)
         }
     }
 
-    private suspend fun dispatch(context: Context, intent: Intent, isProcessText: Boolean, scope: CoroutineScope) {
+    private suspend fun dispatch(context: Context, intent: Intent, isProcessText: Boolean, scope: CoroutineScope, imageSession: Long?) {
         val src = resolveShareSource(context, intent)
         if (isProcessText) {
             val text = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
@@ -250,8 +265,9 @@ object ShareReceiver {
                 if (!text.isNullOrBlank()) processText(context, text, "SharedText", scope, src)
             }
             intent.type?.startsWith("image/") == true -> {
-                val uri: Uri? = getStreamUri(intent)
-                if (uri != null) processImage(context, uri, "SharedImage", scope, src)
+                val uri = getStreamUri(intent) ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+                if (uri != null) processImage(context, uri, "SharedImage", scope, src, imageSession)
+                else imageSession?.let { SharedImageRecognition.session.complete(it, message = "未收到图片，请重新分享") }
             }
         }
     }
@@ -273,73 +289,90 @@ object ShareReceiver {
 
     private suspend fun processImage(
         context: Context, uri: Uri, sourceLabel: String, scope: CoroutineScope,
-        shareSource: ShareSource?
+        shareSource: ShareSource?, sessionId: Long?
     ) {
+        fun finish(message: String) { sessionId?.let { SharedImageRecognition.session.complete(it, message = message) } }
         val bitmap = withContext(Dispatchers.IO) {
             try {
                 ImageUtils.decodeSampledBitmap(context, uri)
-            } catch (e: Exception) {
-                Log.e(TAG, "Read image failed: ${e.message}")
-                null
-            }
-        } ?: return
-
-        // OCR + 券码检测（都在 recycle 前用同一张 bitmap）
-        var lines: List<OCREngine.TextLine> = emptyList()
-        var coupons: List<CouponDetector.CouponResult> = emptyList()
-        var ocrError = false
-        withContext(Dispatchers.Default) {
-            try {
-                lines = OCREngine.recognize(bitmap)
-                coupons = CouponDetector.detect(bitmap)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "OCR failed", e)
-                ocrError = true
-            }
-        }
-        if ((lines.isEmpty() && coupons.isEmpty()) || ocrError) {
-            // 识别无结果时不落盘截图：先识别后存图，避免空结果也产生孤儿 JPEG
-            // （与无障碍路径「识别成功后才保存」行为一致）
-            if (!bitmap.isRecycled) bitmap.recycle()
-            if (lines.isEmpty() && coupons.isEmpty()) {
-                Log.w(TAG, "分享图片识别无结果——OCR和条码检测均未返回内容")
-            }
-            return
-        }
-
-        val imageText = lines.joinToString("\n") { it.text }
-        if (com.pickupcode.app.util.SensitivePageGuard.isIdentityCodePage(imageText)) {
-            if (!bitmap.isRecycled) bitmap.recycle()
-            return
-        }
-
-        // AI 图片通道：必须在 recycle 之前把图压成 base64（用户要求「发给 AI 的是照片」）。
-        // 只有 AI 已启用且「AI 读取图片」开着时才压，避免白耗 CPU。
-        val aiImage: String? = run {
-            val st = withContext(Dispatchers.IO) { AppPreferences.observe(context).first() }
-            if (st.enableAI && st.enableAiImage) {
-                withContext(Dispatchers.IO) { ImageUtils.toBase64JpegForAi(bitmap) }
-            } else {
+                Log.e(TAG, "Read image failed (${e.javaClass.simpleName})")
                 null
             }
-        }
+        } ?: run { finish("无法读取图片，请从相册重新分享或手动添加"); return }
 
-        // 识别到结果才保存共享图片（详情页截图用）
-        val screenshotPath = try {
-            withContext(Dispatchers.IO) {
-                ImageUtils.saveJpeg(context, "shared_images", "share", bitmap)
+        try {
+            // OCR + 券码检测（都在 recycle 前用同一张 bitmap）
+            var lines: List<OCREngine.TextLine> = emptyList()
+            var coupons: List<CouponDetector.CouponResult> = emptyList()
+            var ocrError = false
+            withContext(Dispatchers.Default) {
+                try {
+                    lines = OCREngine.recognize(bitmap)
+                    coupons = CouponDetector.detect(bitmap)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "OCR failed (${e.javaClass.simpleName})")
+                    ocrError = true
+                }
             }
+            if ((lines.isEmpty() && coupons.isEmpty()) || ocrError) {
+                // 识别无结果时不落盘截图：先识别后存图，避免空结果也产生孤儿 JPEG
+                // （与无障碍路径「识别成功后才保存」行为一致）
+                if (lines.isEmpty() && coupons.isEmpty()) {
+                    Log.w(TAG, "分享图片识别无结果——OCR和条码检测均未返回内容")
+                }
+                finish(if (ocrError) "图片识别失败，请重新分享或手动添加" else "未读到文字或条码，请使用更清晰的图片")
+                return
+            }
+
+            val imageText = lines.joinToString("\n") { it.text }
+            if (com.pickupcode.app.util.SensitivePageGuard.isIdentityCodePage(imageText)) {
+                finish("身份码页面不会保存为取件记录")
+                return
+            }
+
+            // AI 图片通道：必须在 recycle 之前把图压成 base64（用户要求「发给 AI 的是照片」）。
+            // 只有 AI 已启用且「AI 读取图片」开着时才压，避免白耗 CPU。
+            val aiImage: String? = run {
+                val st = withContext(Dispatchers.IO) { AppPreferences.observe(context).first() }
+                if (st.enableAI && st.enableAiImage) {
+                    withContext(Dispatchers.IO) { ImageUtils.toBase64JpegForAi(bitmap) }
+                } else {
+                    null
+                }
+            }
+
+            // 识别到结果才保存共享图片（详情页截图用）
+            val screenshotPath = try {
+                withContext(Dispatchers.IO) {
+                    ImageUtils.saveJpeg(context, "shared_images", "share", bitmap)
+                }
+            } finally {
+                if (!bitmap.isRecycled) bitmap.recycle()
+            }
+
+            val allText = lines.joinToString(" ") { it.text }
+            val address = AddressExtractor.extractAddressFromStores(context, lines, allText)
+            val snippet = "$sourceLabel | ${lines.joinToString(" ") { it.text }}"
+            val outcome = extractAndNotify(context, lines, snippet, screenshotPath, address, scope, coupons, shareSource, aiImage)
+            val records = withContext(Dispatchers.IO) {
+                val repo = AppDatabase.getInstance(context).repository
+                outcome.saved.distinctBy { it.id }.mapNotNull { repo.getByIdSuspend(it.id) }
+            }
+            sessionId?.let { SharedImageRecognition.session.complete(it, records,
+                message = if (outcome.aiPending) "AI 正在后台补充，后续结果将通过通知提醒"
+                    else if (records.isEmpty()) "未找到可保存的码，请核对图片或手动添加" else "",
+                existingCount = records.count { record -> outcome.saved.any { it.id == record.id && it.existed } }) }
         } finally {
             if (!bitmap.isRecycled) bitmap.recycle()
         }
-
-        val allText = lines.joinToString(" ") { it.text }
-        val address = AddressExtractor.extractAddressFromStores(context, lines, allText)
-        val snippet = "$sourceLabel | ${lines.joinToString(" ") { it.text }}"
-        extractAndNotify(context, lines, snippet, screenshotPath, address, scope, coupons, shareSource, aiImage)
     }
+
+    private data class LocalOutcome(val saved: List<RecognitionPipeline.SavedCode> = emptyList(), val aiPending: Boolean = false)
 
     private suspend fun extractAndNotify(
         context: Context,
@@ -351,18 +384,18 @@ object ShareReceiver {
         coupons: List<CouponDetector.CouponResult> = emptyList(),
         shareSource: ShareSource? = null,
         aiImageBase64: String? = null
-    ) {
+    ): LocalOutcome {
         val shareSourcePkg = shareSource?.pkg ?: ""
         val shareSourceName = shareSource?.name ?: ""
         val allText = lines.joinToString(" ") { it.text }
 
-        if (com.pickupcode.app.util.SensitivePageGuard.isIdentityCodePage(allText)) return
+        if (com.pickupcode.app.util.SensitivePageGuard.isIdentityCodePage(allText)) return LocalOutcome()
 
         // 金融/支付噪音拦截：银行/支付/转账等通知截图里的数字（金额/验证码/余额）极易被当取件码。
         // 命中金融词且无快递/取件信号词 → 整段不识别。（参考同类产品实现 isExpressRelatedSms）
         if (CodeExtractor.isFinancialNoise(allText)) {
             Log.d(TAG, "金融/支付噪音文本，跳过识别")
-            return
+            return LocalOutcome()
         }
 
         val db = AppDatabase.getInstance(context)
@@ -415,10 +448,11 @@ object ShareReceiver {
 
         }
 
-        val aiEnabled = !hasCoupon && settings.enableAI && settings.apiKey.isNotBlank()
+        val aiEnabled = !hasCoupon && settings.enableAI && settings.apiKey.isNotBlank() &&
+            !com.pickupcode.app.extractor.AuthenticationCodeFilter.isAuthenticationOnly(allText)
         if (allResults.isEmpty() && !aiEnabled) {
             db.repository.releaseScreenshots(listOf(screenshotPath))
-            return
+            return LocalOutcome()
         }
 
         // 逐码落库 + 站点学习（三路径共用管线）
@@ -452,6 +486,7 @@ object ShareReceiver {
                 allResults.map { it.code to it.type }, allResults.associate { it.code to it.source },
                 saved, address, screenshotPath, aiImageBase64, shareSourcePkg, shareSourceName, showErrors = true)
         }
+        return LocalOutcome(saved, aiEnabled)
     }
 
     private fun isTypeDisabled(type: CodeExtractor.CodeType, settings: AppPreferences.Settings): Boolean =

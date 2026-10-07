@@ -33,28 +33,25 @@ fun CodeHistoryCard(item: CodeHistory, onClick: () -> Unit, onDone: () -> Unit,
     val logo = remember(item.source, item.shareSourceName, item.shareSourcePkg) {
         BrandLogo.logoRes(item.source, item.shareSourceName, item.shareSourcePkg)
     }
-    val status = when {
-        !item.isActive -> "已取"
-        item.expiryTime in 1..now -> "已过期"
-        else -> ""
-    }
     Card(onClick = onClick, modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        colors = CardDefaults.cardColors(containerColor = if (item.isActive) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLow)) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val stackActions = maxWidth < 340.dp || LocalDensity.current.fontScale > 1.15f
             val doneButton: @Composable () -> Unit = {
                 FilledTonalButton(onClick = onDone, modifier = Modifier.heightIn(min = 48.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp), shape = MaterialTheme.shapes.small,
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer)) {
-                    Text(if (item.isActive) "已取" else "恢复")
+                        containerColor = if (item.isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = if (item.isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)) {
+                    Text(if (item.isActive) { if (item.type == "coupon") "标记已使用" else "标记已取" } else { if (item.type == "coupon") "恢复未使用" else "恢复未取" })
                 }
             }
             Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 12.dp)) {
+                com.pickupcode.app.ui.components.RecordStatusBadge(item, now)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(item.code, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                        color = if (item.isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                             .clickable(onClickLabel = "复制码值", onClick = onCopy).wrapContentHeight(Alignment.CenterVertically))
@@ -73,8 +70,7 @@ fun CodeHistoryCard(item: CodeHistory, onClick: () -> Unit, onDone: () -> Unit,
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (logo != null) BrandBadge(res = logo, contentDescription = null, boxSize = 20.dp)
-                    Text("${item.source.ifBlank { when (item.type) { "coupon" -> "券码"; "pickup_food" -> "取餐"; else -> "取件" } }} · $formattedTime" +
-                        if (status.isEmpty()) "" else " · $status",
+                    Text("${item.source.ifBlank { when (item.type) { "coupon" -> "券码"; "pickup_food" -> "取餐"; else -> "取件" } }} · $formattedTime",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }

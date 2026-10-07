@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.pickupcode.app.data.AppDatabase
 import com.pickupcode.app.data.CodeHistory
@@ -62,7 +63,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         // 处理外部分享/拖放 Intent（首次启动时）
-        ShareReceiver.handle(this, intent, App.appScope)
+        if (savedInstanceState == null) ShareReceiver.handle(this, intent, App.appScope)
         // B3: 消费通知导航 extra（showDuplicate 的 show_dedup）
         consumeNotificationExtras(intent)
 
@@ -97,6 +98,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            val imageFeedback by com.pickupcode.app.share.SharedImageRecognition.session.feedback.collectAsStateWithLifecycle()
             PickupCodeTheme {
                 when (screen) {
                     Screen.Home -> HomeScreen(
@@ -165,6 +167,19 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                imageFeedback?.let { feedback ->
+                    com.pickupcode.app.ui.components.SharedImageResultDialog(feedback,
+                        onDismiss = { com.pickupcode.app.share.SharedImageRecognition.session.dismiss(feedback.id) },
+                        onDetail = { id ->
+                            com.pickupcode.app.share.SharedImageRecognition.session.dismiss(feedback.id)
+                            selectedCodeId = id
+                            currentScreen = Screen.Detail.name
+                        },
+                        onManual = {
+                            com.pickupcode.app.share.SharedImageRecognition.session.dismiss(feedback.id)
+                            showManualDialog = true
+                        })
+                }
                 if (showManualDialog) {
                     ManualCodeDialog(
                         onDismiss = { showManualDialog = false },
@@ -181,6 +196,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         // 处理外部分享/拖放 Intent（App已在运行中时）
         ShareReceiver.handle(this, intent, App.appScope)
         // B3: 消费通知导航 extra（showDuplicate 的 show_dedup）
