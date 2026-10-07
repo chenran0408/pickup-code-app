@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.material3.*
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -68,6 +69,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import android.util.Log
+import android.content.Intent
+import android.content.ActivityNotFoundException
 import androidx.compose.ui.unit.sp
 import com.pickupcode.app.R
 import com.pickupcode.app.ui.components.IconText
@@ -129,6 +132,22 @@ fun HomeScreen(
     fun copyCode(item: CodeHistory) {
         clipboard.setText(AnnotatedString(item.code))
         scope.launch { snackbarHostState.showSnackbar("码值已复制") }
+    }
+    fun sharePending() {
+        val shareText = PendingShareText.build(activeHistory, System.currentTimeMillis())
+        if (shareText == null) {
+            scope.launch { snackbarHostState.showSnackbar("当前没有未取的取件码或取餐码") }
+            return
+        }
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, shareText)
+        }
+        try {
+            context.startActivity(Intent.createChooser(send, "分享未取码"))
+        } catch (_: ActivityNotFoundException) {
+            scope.launch { snackbarHostState.showSnackbar("没有可用的分享应用") }
+        }
     }
     var moreMenu by remember { mutableStateOf(false) }
     var statusMenu by remember { mutableStateOf(false) }
@@ -208,6 +227,10 @@ fun HomeScreen(
                     // + 同一个 IconButton 热区。
                     val actionTint = MaterialTheme.colorScheme.onSurface
                     val iconModifier = Modifier.size(20.dp)
+                    IconButton(onClick = ::sharePending) {
+                        Icon(Icons.Default.Share, contentDescription = "分享当前未取码", modifier = iconModifier,
+                            tint = actionTint)
+                    }
                     Box {
                         IconButton(onClick = { moreMenu = true }) { Icon(Icons.Default.MoreVert, "更多功能") }
                         DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
