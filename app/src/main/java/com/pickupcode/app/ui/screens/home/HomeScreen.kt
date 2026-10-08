@@ -262,7 +262,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
-                contentPadding = PaddingValues(bottom = 80.dp)
+                contentPadding = PaddingValues(bottom = if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f) 120.dp else 104.dp)
             ) {
             item(key = "filters", contentType = "controls") {
                 FilterChipRow(currentFilter = typeFilter, onFilterChange = { typeFilter = it })

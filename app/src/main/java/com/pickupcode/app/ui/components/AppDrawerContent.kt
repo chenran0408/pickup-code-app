@@ -4,23 +4,34 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import com.pickupcode.app.ui.miuix.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun AppDrawerContent(onNavigate: (String) -> Unit) {
-    ModalDrawerSheet(Modifier.widthIn(max = 320.dp)) {
+fun AppDrawerContent(onClose: () -> Unit, onNavigate: (String) -> Unit) {
+    ModalDrawerSheet {
         Column(Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
-            Text("码上闪记", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(16.dp))
-            Text("识别功能", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(16.dp))
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("码上闪记", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
+                IconButton(onClick = onClose) { Icon(Icons.Default.Close, "关闭菜单") }
+            }
+            Text("识别功能", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
             for ((key, label) in listOf("notification_apps" to "通知识别", "recognition" to "识别偏好",
                 "input" to "识别方式与权限", "verify" to "AI 与辅助识别", "rules" to "自定义规则", "addresses" to "常用取件地址")) {
                 NavigationDrawerItem(label = { Text(label) }, selected = false, onClick = { onNavigate(key) })
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            Text("记录管理", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(16.dp))
+            Text("记录管理", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
             for ((key, label) in listOf("stats" to "识别统计", "dedup" to "重复记录", "trash" to "回收站")) {
                 NavigationDrawerItem(label = { Text(label) }, selected = false, onClick = { onNavigate(key) })
             }

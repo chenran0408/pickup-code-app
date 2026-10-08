@@ -27,6 +27,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ButtonDefaults
@@ -220,10 +223,9 @@ private fun SettingsSectionCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        // 滚动列表里的阴影每帧重绘是卡顿源之一：降为 0，用浅描边保持分组视觉
+        // 与其他页面共用平滑圆角和表面层次，长列表不逐帧绘制阴影。
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+        shape = MaterialTheme.shapes.medium
     ) {
         Column(
             modifier = Modifier
@@ -279,11 +281,13 @@ private fun SettingsSwitch(
     @DrawableRes icon: Int? = null
 ) {
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().heightIn(min = 56.dp)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+            .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
             // 图标（Lucide 线性）替代原先写在标题里的 Emoji（用户 2026-09-18 要求）
             if (icon != null) {
                 com.pickupcode.app.ui.components.IconText(
@@ -302,7 +306,8 @@ private fun SettingsSwitch(
         }
         Switch(
             checked = checked,
-            onCheckedChange = onChange
+            onCheckedChange = onChange,
+            modifier = Modifier.clearAndSetSemantics { }
         )
     }
 }
@@ -388,7 +393,7 @@ private fun InputMethodsSection(sc: SettingsCtx) {
             "快递取件码到期提醒",
             sub = if (sc.s.enableExpiryRemind) "按文字时限或免费保管期限提醒；未注明时默认 3 天" else "已关闭",
             checked = sc.s.enableExpiryRemind,
-            onChange = { v -> sc.save { AppPreferences.setEnableExpiryRemind(sc.ctx, v) } }
+            onChange = sc.save { AppPreferences.setEnableExpiryRemind(sc.ctx, it) }
         )
     }
 }
@@ -416,6 +421,7 @@ private fun SmsNotificationSettings(sc: SettingsCtx) {
     }
     fun openAccess() { com.pickupcode.app.service.SmsNotificationListener.openAccess(sc.ctx) }
     var selectingApps by rememberSaveable { mutableStateOf(false) }
+    val displayDensity = androidx.compose.ui.platform.LocalDensity.current
     TextButton(onClick = { selectingApps = true }) {
         Text("选择通知来源（${sc.s.notificationApps.size}）")
     }
@@ -430,7 +436,9 @@ private fun SmsNotificationSettings(sc: SettingsCtx) {
     if (selectingApps) androidx.compose.ui.window.Dialog(
         onDismissRequest = { selectingApps = false },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-        NotificationAppsScreen(onBack = { selectingApps = false }, onRequestAccess = { openAccess() })
+        CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides displayDensity) {
+            NotificationAppsScreen(onBack = { selectingApps = false }, onRequestAccess = { openAccess() })
+        }
     }
 }
 
@@ -697,7 +705,7 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
             Text(
                 msg,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (probeOk) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
+                color = if (probeOk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
             )
         }
     }
@@ -706,8 +714,22 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
 @Composable
 private fun AppearanceSection(sc: SettingsCtx) {
     SettingsSectionCard(title = "外观") {
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色").forEachIndexed { i, (v, l) ->
+        SettingsSwitch("大字模式", sub = "文字更大，按钮更好点",
+            checked = sc.s.largeText, onChange = sc.save { AppPreferences.setLargeText(sc.ctx, it) })
+        val themes = listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色")
+        if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                themes.forEach { (value, label) ->
+                    FilterChip(
+                        selected = sc.s.darkMode == value,
+                        onClick = { sc.saveRun { AppPreferences.setDarkMode(sc.ctx, value) } },
+                        label = { Text(label) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        } else SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            themes.forEachIndexed { i, (v, l) ->
                 SegmentedButton(
                     selected = sc.s.darkMode == v,
                     onClick = { sc.saveRun { AppPreferences.setDarkMode(sc.ctx, v) } },

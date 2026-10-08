@@ -22,6 +22,9 @@ import com.pickupcode.app.util.IdentityCodeLauncher
 @Composable
 fun PickupIdentityCard(compact: Boolean = false) {
     val context = LocalContext.current
+    // 紧凑入口使用 surface 背景，文字和图标必须使用与该背景配套的前景色。
+    val foreground = if (compact) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimaryContainer
+    val largeText = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
     val entries = androidx.compose.runtime.remember { listOf(
         IdentityEntry("淘宝码", R.drawable.ic_brand_taobao, IdentityCodeLauncher::openTaobao),
         IdentityEntry("菜鸟码", R.drawable.ic_brand_cainiao, IdentityCodeLauncher::openCainiao),
@@ -38,15 +41,15 @@ fun PickupIdentityCard(compact: Boolean = false) {
                 }
             }, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.medium,
                 colors = CardDefaults.cardColors(containerColor = if (compact) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primaryContainer)) {
-                Column(Modifier.fillMaxWidth().heightIn(min = if (compact) 56.dp else 88.dp).padding(horizontal = 8.dp, vertical = if (compact) 6.dp else 10.dp),
+                Column(Modifier.fillMaxWidth().heightIn(min = if (compact) { if (largeText) 72.dp else 56.dp } else 88.dp).padding(horizontal = 8.dp, vertical = if (compact) 6.dp else 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center) {
                     Image(painterResource(entry.icon), null,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer),
-                        modifier = Modifier.size(if (compact) 20.dp else 32.dp))
+                        colorFilter = ColorFilter.tint(foreground),
+                        modifier = Modifier.size(if (compact) { if (largeText) 26.dp else 20.dp } else 32.dp))
                     Spacer(Modifier.height(if (compact) 2.dp else 6.dp))
-                    Text(entry.label, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleSmall, maxLines = 1, fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text(entry.label, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleSmall, maxLines = if (largeText) 2 else 1, fontWeight = FontWeight.SemiBold,
+                        color = foreground)
                 }
             }
         }

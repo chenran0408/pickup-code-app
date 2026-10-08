@@ -4,7 +4,7 @@
 
 默认在本机识别和保存；离线中文 OCR 与二维码模型随安装包提供。AI、地图和快递查询均为可选功能，需要自行配置并开启。
 
-开发分支统一采用 miuix 界面，包含首页、详情、设置、侧边栏与弹窗；迁移范围和兼容说明见 [miuix 说明](docs/MIUIX_MIGRATION_2026-10.md)。下载区仍指向已发布版本。
+开发分支统一采用 miuix 界面，包含首页、详情、设置、侧边栏与弹窗；统一卡片、按钮、输入框与状态标签，并分别适配浅色和深色的文字对比度；迁移范围见 [miuix 说明](docs/MIUIX_MIGRATION_2026-10.md)，详细配色说明见 [主题适配](docs/MIUIX_THEME_2026-10.md)。下载区仍指向已发布版本。
 
 [![Build and Test](https://github.com/chenran0408/pickup-code-app/actions/workflows/ci.yml/badge.svg)](https://github.com/chenran0408/pickup-code-app/actions/workflows/ci.yml)
 [![Downloads](https://img.shields.io/github/downloads/chenran0408/pickup-code-app/total)](https://github.com/chenran0408/pickup-code-app/releases)
@@ -22,7 +22,7 @@
 - 取件短信格式扩展、验证码排除修复；可选识别默认短信应用和微信的新通知。
 - 首页默认全部记录，已取历史保留并可恢复，支持已取/过期筛选与按站点批量已取。
 - 码值点一下复制；淘宝、菜鸟、拼多多入口固定在紧凑底栏，三个点击区以竖线分隔。
-- 统一深浅色主题、圆角与按钮，适配窄屏、大字体和键盘弹出布局。
+- 统一 MIUIX 深浅色主题、圆角与按钮；“主题与显示”可开启大字模式，放大文字和常用点击区，适合长辈使用，并尊重系统更大字号。
 - 后台完成排序/分组及设置解密；页面离开前台后暂停订阅与计时刷新。
 - 仅提供 arm64，启用 R8、资源收缩和原生库压缩，保留离线识别模型。
 

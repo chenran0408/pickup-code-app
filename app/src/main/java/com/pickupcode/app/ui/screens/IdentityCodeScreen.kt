@@ -111,7 +111,7 @@ fun IdentityCodeScreen(onBack: () -> Unit) {
                 "身份码等于取件授权，请勿截图外传。",
                 iconSize = 15.dp,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFB3261E)
+                color = MaterialTheme.colorScheme.error
             )
         }
     }

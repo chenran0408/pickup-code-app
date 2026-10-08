@@ -48,6 +48,9 @@ import top.yukonga.miuix.kmp.utils.SmoothRoundedCornerShape
 private val LocalContent = LocalContentColor
 
 @Composable
+private fun controlHeight(): Dp = if (LocalDensity.current.fontScale >= 1.3f) 56.dp else 48.dp
+
+@Composable
 fun Text(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified,
     fontSize: TextUnit = TextUnit.Unspecified, fontWeight: FontWeight? = null, fontFamily: FontFamily? = null,
     textAlign: TextAlign? = null, lineHeight: TextUnit = TextUnit.Unspecified, textDecoration: TextDecoration? = null,
@@ -72,7 +75,7 @@ fun Icon(painter: Painter, contentDescription: String?, modifier: Modifier = Mod
 @Composable
 fun IconButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable () -> Unit) {
     top.yukonga.miuix.kmp.basic.IconButton(onClick, modifier, enabled, backgroundColor = Color.Transparent,
-        minWidth = 48.dp, minHeight = 48.dp, content = content)
+        minWidth = controlHeight(), minHeight = controlHeight(), content = content)
 }
 
 @Composable
@@ -85,14 +88,14 @@ fun Surface(modifier: Modifier = Modifier, shape: Shape = SmoothRoundedCornerSha
 
 @Composable
 fun Card(modifier: Modifier = Modifier, shape: Shape = SmoothRoundedCornerShape(20.dp),
-    colors: CardColors = CardDefaults.cardColors(), elevation: CardElevation = CardDefaults.cardElevation(0.dp),
+    colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation: CardElevation = CardDefaults.cardElevation(0.dp),
     border: BorderStroke? = null, content: @Composable ColumnScope.() -> Unit) {
     Surface(modifier, shape, colors.containerColor, colors.contentColor, border = border) { Column(content = content) }
 }
 
 @Composable
 fun Card(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
-    shape: Shape = SmoothRoundedCornerShape(20.dp), colors: CardColors = CardDefaults.cardColors(),
+    shape: Shape = SmoothRoundedCornerShape(20.dp), colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation: CardElevation = CardDefaults.cardElevation(0.dp), border: BorderStroke? = null,
     content: @Composable ColumnScope.() -> Unit) = Card(modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick), shape, colors, elevation, border, content)
 
@@ -106,7 +109,7 @@ fun Button(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean 
     top.yukonga.miuix.kmp.basic.Surface(onClick, modifier, enabled, shape, background, border) {
         CompositionLocalProvider(LocalContent provides if (enabled) colors.contentColor else colors.disabledContentColor) {
             ProvideTextStyle(MiuixTheme.textStyles.button) {
-                Row(Modifier.defaultMinSize(minHeight = 48.dp).padding(contentPadding),
+                Row(Modifier.defaultMinSize(minHeight = controlHeight()).padding(contentPadding),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, content = content)
             }
         }
@@ -120,7 +123,7 @@ fun TextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Bool
     top.yukonga.miuix.kmp.basic.Surface(onClick, modifier, enabled, shape, Color.Transparent) {
         CompositionLocalProvider(LocalContent provides if (enabled) colors.contentColor else colors.disabledContentColor) {
             ProvideTextStyle(MiuixTheme.textStyles.button) {
-                Row(Modifier.defaultMinSize(minHeight = 48.dp).padding(contentPadding), verticalAlignment = Alignment.CenterVertically,
+                Row(Modifier.defaultMinSize(minHeight = controlHeight()).padding(contentPadding), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center, content = content)
             }
         }
@@ -154,9 +157,10 @@ fun FilterChip(selected: Boolean, onClick: () -> Unit, label: @Composable () -> 
 
 @Composable
 fun AssistChip(onClick: () -> Unit, label: @Composable () -> Unit, modifier: Modifier = Modifier,
-    enabled: Boolean = true, colors: ChipColors = AssistChipDefaults.assistChipColors()) {
-    Button(onClick, modifier, enabled, colors = ButtonDefaults.buttonColors(containerColor = MiuixTheme.colorScheme.secondaryVariant,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant), contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { label() }
+    enabled: Boolean = true, colors: ChipColors = AssistChipDefaults.assistChipColors(
+        containerColor = MiuixTheme.colorScheme.secondaryVariant, labelColor = MaterialTheme.colorScheme.onSurfaceVariant)) {
+    Button(onClick, modifier, enabled, colors = ButtonDefaults.buttonColors(containerColor = colors.containerColor,
+        contentColor = colors.labelColor), contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { label() }
 }
 
 @Composable
@@ -208,11 +212,15 @@ fun Slider(value: Float, onValueChange: (Float) -> Unit, modifier: Modifier = Mo
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun AlertDialog(onDismissRequest: () -> Unit, confirmButton: @Composable () -> Unit,
     modifier: Modifier = Modifier, dismissButton: @Composable (() -> Unit)? = null,
     title: @Composable (() -> Unit)? = null, text: @Composable (() -> Unit)? = null,
     properties: DialogProperties = DialogProperties(), icon: @Composable (() -> Unit)? = null) {
+    val density = LocalDensity.current
     Dialog(onDismissRequest, properties) {
+        // 独立窗口会提供系统字号，重新传递应用的大字设置，避免弹窗字号回退。
+        CompositionLocalProvider(LocalDensity provides density) {
         top.yukonga.miuix.kmp.basic.Card(modifier.fillMaxWidth(), cornerRadius = 28.dp, insideMargin = PaddingValues(24.dp)) {
             icon?.invoke()
             title?.let {
@@ -223,9 +231,11 @@ fun AlertDialog(onDismissRequest: () -> Unit, confirmButton: @Composable () -> U
             }
             Box(Modifier.weight(1f, fill = false)) { text?.invoke() }
             Spacer(Modifier.height(16.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                dismissButton?.invoke(); Spacer(Modifier.width(8.dp)); confirmButton()
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                dismissButton?.invoke(); confirmButton()
             }
+        }
         }
     }
 }
@@ -257,12 +267,15 @@ fun FloatingActionButton(onClick: () -> Unit, modifier: Modifier = Modifier, con
 
 @Composable
 fun DropdownMenu(expanded: Boolean, onDismissRequest: () -> Unit, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val density = LocalDensity.current
     val margin = with(LocalDensity.current) { 8.dp.roundToPx() }
     val maxWidth = minOf(320.dp, (LocalConfiguration.current.screenWidthDp.dp - 32.dp).coerceAtLeast(1.dp))
     if (expanded) Popup(popupPositionProvider = remember(margin) { MenuPosition(margin) },
         onDismissRequest = onDismissRequest, properties = PopupProperties(focusable = true)) {
+        CompositionLocalProvider(LocalDensity provides density) {
         top.yukonga.miuix.kmp.basic.Card(modifier.widthIn(min = minOf(160.dp, maxWidth), max = maxWidth), cornerRadius = 20.dp) {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()).padding(8.dp), content = content)
+        }
         }
     }
 }
@@ -277,7 +290,9 @@ fun DropdownMenuItem(text: @Composable () -> Unit, onClick: () -> Unit, modifier
 
 @Composable
 fun ModalDrawerSheet(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier.widthIn(max = 320.dp).fillMaxHeight(), shape = SmoothRoundedCornerShape(24.dp), color = MiuixTheme.colorScheme.background) {
+    val width = minOf(if (LocalDensity.current.fontScale >= 1.3f) 360.dp else 320.dp,
+        (LocalConfiguration.current.screenWidthDp.dp - 24.dp).coerceAtLeast(1.dp))
+    Surface(modifier.width(width).fillMaxHeight(), shape = SmoothRoundedCornerShape(24.dp), color = MiuixTheme.colorScheme.background) {
         Column(Modifier.statusBarsPadding().navigationBarsPadding(), content = content)
     }
 }

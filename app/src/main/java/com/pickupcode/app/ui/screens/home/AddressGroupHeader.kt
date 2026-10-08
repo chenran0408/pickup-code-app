@@ -59,7 +59,7 @@ fun AddressGroupHeader(
         Text(
             text = "$count 条",
             fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 8.dp)
         )
         if (onDoneAll != null) {

@@ -19,7 +19,7 @@ fun RecordStatusBadge(item: CodeHistory, now: Long = System.currentTimeMillis())
         else -> if (item.type == "coupon") "未使用" else "未取"
     }
     Surface(shape = MaterialTheme.shapes.small,
-        color = when { !item.isActive -> MaterialTheme.colorScheme.surfaceVariant
+        color = when { !item.isActive -> MaterialTheme.colorScheme.surfaceContainerHigh
             expired -> MaterialTheme.colorScheme.errorContainer
             else -> MaterialTheme.colorScheme.primaryContainer },
         contentColor = when { !item.isActive -> MaterialTheme.colorScheme.onSurfaceVariant

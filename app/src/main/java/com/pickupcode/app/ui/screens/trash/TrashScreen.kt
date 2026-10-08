@@ -142,7 +142,7 @@ private fun TrashCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         shape = MaterialTheme.shapes.medium
     ) {
@@ -151,7 +151,7 @@ private fun TrashCard(
                 text = item.code,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textDecoration = TextDecoration.LineThrough
             )
             Text(

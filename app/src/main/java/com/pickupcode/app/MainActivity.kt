@@ -107,7 +107,7 @@ class MainActivity : ComponentActivity() {
             PickupCodeTheme {
                 androidx.compose.material3.ModalNavigationDrawer(drawerState = drawerState,
                     gesturesEnabled = screen == Screen.Home, drawerContent = {
-                    com.pickupcode.app.ui.components.AppDrawerContent { key ->
+                    com.pickupcode.app.ui.components.AppDrawerContent(onClose = { uiScope.launch { drawerState.close() } }) { key ->
                         uiScope.launch {
                             drawerState.close()
                             settingsChildBack = Screen.Home.name
