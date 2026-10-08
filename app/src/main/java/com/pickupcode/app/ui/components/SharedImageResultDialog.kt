@@ -7,7 +7,8 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import com.pickupcode.app.ui.miuix.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,7 +34,7 @@ fun SharedImageResultDialog(feedback: ShareRecognitionSession.Feedback,
                             if (feedback.existingCount > 0) "，已有 ${feedback.existingCount} 条" else "")
                         LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(feedback.records, key = { it.id }) { item ->
-                                OutlinedCard {
+                                Card {
                                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                         RecordStatusBadge(item)
                                         Text(item.code, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)

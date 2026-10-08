@@ -18,26 +18,26 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.yukonga.miuix.kmp.utils.SmoothRoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.pickupcode.app.ui.miuix.Button
+import com.pickupcode.app.ui.miuix.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.pickupcode.app.ui.miuix.FloatingActionButton
+import com.pickupcode.app.ui.miuix.Icon
+import com.pickupcode.app.ui.miuix.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import com.pickupcode.app.ui.miuix.Scaffold
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
+import com.pickupcode.app.ui.miuix.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import com.pickupcode.app.ui.miuix.Text
+import com.pickupcode.app.ui.miuix.TextButton
+import com.pickupcode.app.ui.miuix.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,7 +48,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.material3.*
+import com.pickupcode.app.ui.miuix.*
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.getValue
@@ -188,7 +188,7 @@ fun HomeScreen(
     }
 
     confirmGroup?.let { items ->
-        androidx.compose.material3.AlertDialog(
+        com.pickupcode.app.ui.miuix.AlertDialog(
             onDismissRequest = { confirmGroup = null },
             title = { Text("全部标记已取？") },
             text = { Text("将 ${items.first().pickupAddress} 的 ${items.size} 条记录标记为已取，可撤销。") },
@@ -211,9 +211,7 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text("码上闪记", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                },
+                title = "码上闪记",
                 navigationIcon = { IconButton(onClick = onOpenDrawer) { Icon(Icons.Default.Menu, "打开侧边栏") } },
                 actions = {
                     // 右上角三个辅助动作图标：2026-09-18 用户指定换成附件里的线性图标（Lucide 风格），
@@ -241,7 +239,7 @@ fun HomeScreen(
             }
         },
         floatingActionButton = {
-            androidx.compose.material3.ExtendedFloatingActionButton(
+            com.pickupcode.app.ui.miuix.ExtendedFloatingActionButton(
                 onClick = onFabClick,
                 shape = MaterialTheme.shapes.medium,
                 containerColor = MaterialTheme.colorScheme.primary,

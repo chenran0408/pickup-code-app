@@ -1,0 +1,5 @@
+Miuix
+Source: https://github.com/compose-miuix-ui/miuix/tree/v0.3.0
+Version: 0.3.0 (cca0d852877aba24b284db28f77fcce2980827a6)
+License: Apache License 2.0
+The complete license is included in this directory.

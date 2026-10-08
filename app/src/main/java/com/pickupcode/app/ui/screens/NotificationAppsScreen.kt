@@ -13,7 +13,9 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
+import com.pickupcode.app.ui.miuix.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -93,14 +95,14 @@ fun NotificationAppsScreen(onBack: () -> Unit, onRequestAccess: () -> Unit) {
         }
     }
     Scaffold(topBar = {
-        TopAppBar(title = { Text("通知识别") }, navigationIcon = {
+        TopAppBar(title = "通知识别", navigationIcon = {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
         }, actions = {
             IconButton(onClick = { refresh++ }, enabled = !loading) { Icon(Icons.Default.Refresh, "刷新应用列表") }
         })
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            OutlinedTextField(query, onValueChange = { query = it }, label = { Text("搜索应用名称或包名") },
+            OutlinedTextField(query, onValueChange = { query = it }, labelText = "搜索应用名称或包名",
                 singleLine = true, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 trailingIcon = { if (query.isNotEmpty()) TextButton(onClick = { query = "" }) { Text("清空") } })
             Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

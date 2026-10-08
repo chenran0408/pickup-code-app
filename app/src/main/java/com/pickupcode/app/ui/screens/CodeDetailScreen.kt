@@ -7,11 +7,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.yukonga.miuix.kmp.utils.SmoothRoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AssistChipDefaults
+import com.pickupcode.app.ui.miuix.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -97,7 +102,7 @@ fun CodeDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("详情") },
+                title = "详情",
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 },
@@ -316,7 +321,7 @@ fun CodeDetailScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(8.dp))
                         bitmap?.let { bmp -> Image(bitmap = bmp.asImageBitmap(), contentDescription = "截屏",
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.FillWidth) }
+                            modifier = Modifier.fillMaxWidth().clip(SmoothRoundedCornerShape(8.dp)), contentScale = ContentScale.FillWidth) }
                         IconText(R.drawable.ic_pointer, "点击放大查看",
                             iconSize = 13.dp,
                             style = MaterialTheme.typography.labelSmall,

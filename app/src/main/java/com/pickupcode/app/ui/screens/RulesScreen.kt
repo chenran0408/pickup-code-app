@@ -15,23 +15,23 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
+import com.pickupcode.app.ui.miuix.AlertDialog
+import com.pickupcode.app.ui.miuix.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Card
+import com.pickupcode.app.ui.miuix.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.pickupcode.app.ui.miuix.FilterChip
+import com.pickupcode.app.ui.miuix.Icon
+import com.pickupcode.app.ui.miuix.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
+import com.pickupcode.app.ui.miuix.OutlinedTextField
+import com.pickupcode.app.ui.miuix.Scaffold
+import com.pickupcode.app.ui.miuix.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import com.pickupcode.app.ui.miuix.Switch
+import com.pickupcode.app.ui.miuix.Text
+import com.pickupcode.app.ui.miuix.TextButton
+import com.pickupcode.app.ui.miuix.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -98,7 +98,7 @@ fun RulesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("识别规则") },
+                title = "自定义规则",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
@@ -528,7 +528,7 @@ private fun RegexEditDialog(
                 OutlinedTextField(
                     value = regex,
                     onValueChange = { regex = it },
-                    label = { Text("正则表达式") },
+                    labelText = "正则表达式",
                     singleLine = false,
                     maxLines = 4,
                     isError = check?.ok == false,
@@ -550,7 +550,7 @@ private fun RegexEditDialog(
                     OutlinedTextField(
                         value = label,
                         onValueChange = { label = it },
-                        label = { Text("名称（可选）") },
+                        labelText = "名称（可选）",
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )

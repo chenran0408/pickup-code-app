@@ -4,6 +4,8 @@
 
 默认在本机识别和保存；离线中文 OCR 与二维码模型随安装包提供。AI、地图和快递查询均为可选功能，需要自行配置并开启。
 
+开发分支统一采用 miuix 界面，包含首页、详情、设置、侧边栏与弹窗；迁移范围和兼容说明见 [miuix 说明](docs/MIUIX_MIGRATION_2026-10.md)。下载区仍指向已发布版本。
+
 [![Build and Test](https://github.com/chenran0408/pickup-code-app/actions/workflows/ci.yml/badge.svg)](https://github.com/chenran0408/pickup-code-app/actions/workflows/ci.yml)
 [![Downloads](https://img.shields.io/github/downloads/chenran0408/pickup-code-app/total)](https://github.com/chenran0408/pickup-code-app/releases)
 [![Latest release](https://img.shields.io/github/v/release/chenran0408/pickup-code-app)](https://github.com/chenran0408/pickup-code-app/releases/latest)
