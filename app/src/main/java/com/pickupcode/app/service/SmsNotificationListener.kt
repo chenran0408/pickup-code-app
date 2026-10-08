@@ -36,12 +36,14 @@ class SmsNotificationListener : NotificationListenerService() {
 
     override fun onListenerDisconnected() {
         NotificationRecognitionStatus.connected(false)
-        if (hasAccess(this)) requestRebind(ComponentName(this, SmsNotificationListener::class.java))
+        NotificationListenerConnection.recover(this)
     }
 
     override fun onDestroy() {
         NotificationRecognitionStatus.connected(false)
         super.onDestroy()
+        // 部分系统只销毁服务而不派发断连回调；恢复流程会重新检查授权和来源选择。
+        NotificationListenerConnection.recover(applicationContext)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
@@ -126,6 +128,11 @@ class SmsNotificationListener : NotificationListenerService() {
         }
         fun hasAccess(context: Context): Boolean {
             val component = ComponentName(context, SmsNotificationListener::class.java)
+            // 8.1+ 查询通知管理器的实际授权，避免仅凭旧的 Secure 字符串判断。
+            if (android.os.Build.VERSION.SDK_INT >= 27) {
+                return context.getSystemService(android.app.NotificationManager::class.java)
+                    ?.isNotificationListenerAccessGranted(component) == true
+            }
             return Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
                 .orEmpty().split(':').any { ComponentName.unflattenFromString(it) == component }
         }

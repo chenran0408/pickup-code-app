@@ -11,7 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
 
 class App : Application() {
     override fun onCreate() {
@@ -24,13 +24,10 @@ class App : Application() {
 
     private fun restoreNotificationListener() {
         appScope.launch(Dispatchers.IO) {
-            // 部分系统覆盖安装后保留授权但不重新绑定；不在首页主线程读设置。
+            // 首次启用/切换来源也要恢复连接；仅订阅轻量包名集合，不在首页主线程读设置。
             runCatching {
-                val selected = com.pickupcode.app.preferences.AppPreferences.observeNotificationApps(this@App)
-                    .first()
-                if (selected.isNotEmpty() && com.pickupcode.app.service.SmsNotificationListener.hasAccess(this@App)) {
-                    android.service.notification.NotificationListenerService.requestRebind(
-                        android.content.ComponentName(this@App, com.pickupcode.app.service.SmsNotificationListener::class.java))
+                com.pickupcode.app.preferences.AppPreferences.observeNotificationApps(this@App).collect {
+                    com.pickupcode.app.service.NotificationListenerConnection.recover(this@App, selectionChanged = true)
                 }
             }.onFailure { Log.w("App", "恢复通知识别连接失败", it) }
         }

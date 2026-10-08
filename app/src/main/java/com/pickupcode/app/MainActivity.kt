@@ -250,6 +250,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refreshAccessibilityStates()
+        com.pickupcode.app.service.NotificationListenerConnection.recover(this)
     }
 
     /** 刷新无障碍两种状态：设置里是否开启（字符串）+ 本进程服务是否真实连接（connected 标志）。 */

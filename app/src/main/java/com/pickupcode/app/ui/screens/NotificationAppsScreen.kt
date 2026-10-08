@@ -28,6 +28,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.pickupcode.app.preferences.AppPreferences
 import com.pickupcode.app.service.NotificationAppSelection
 import com.pickupcode.app.service.SmsNotificationListener
@@ -43,6 +46,16 @@ fun NotificationAppsScreen(onBack: () -> Unit, onRequestAccess: () -> Unit) {
     val context = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     val selected by AppPreferences.observeNotificationApps(context).collectAsStateWithLifecycle(initialValue = emptySet())
+    val connection by com.pickupcode.app.service.NotificationRecognitionStatus.state.collectAsStateWithLifecycle()
+    var granted by remember { mutableStateOf(SmsNotificationListener.hasAccess(context)) }
+    val owner = LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) granted = SmsNotificationListener.hasAccess(context)
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
     var apps by remember { mutableStateOf<List<NotificationAppEntry>>(emptyList()) }
     var defaultSms by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
@@ -111,7 +124,25 @@ fun NotificationAppsScreen(onBack: () -> Unit, onRequestAccess: () -> Unit) {
             }
             Text("勾选应用，自动从新通知中提取取件码。验证码不会保存。", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = onRequestAccess, modifier = Modifier.padding(horizontal = 8.dp)) { Text("通知访问权限") }
+            Text(com.pickupcode.app.service.NotificationRecognitionStatus.description(selected.size, granted, connection),
+                Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall,
+                color = if (connection.connection == com.pickupcode.app.service.NotificationRecognitionStatus.Connection.FAILED)
+                    MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.padding(horizontal = 8.dp)) {
+                Row {
+                TextButton(onClick = onRequestAccess) { Text("通知访问权限") }
+                if (selected.isNotEmpty() && granted && !connection.connected) TextButton(
+                    onClick = { com.pickupcode.app.service.NotificationListenerConnection.recover(context) },
+                    enabled = connection.connection != com.pickupcode.app.service.NotificationRecognitionStatus.Connection.CONNECTING,
+                ) { Text("重新连接") }
+                }
+                if (connection.connection == com.pickupcode.app.service.NotificationRecognitionStatus.Connection.FAILED) TextButton(
+                    onClick = {
+                        context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            android.net.Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    },
+                ) { Text("后台设置") }
+            }
             if (error) {
                 Text("无法读取应用列表，请检查系统的应用列表权限后重试", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
                 TextButton(onClick = { refresh++ }) { Text("重试") }

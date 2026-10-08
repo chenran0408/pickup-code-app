@@ -419,15 +419,11 @@ private fun SmsNotificationSettings(sc: SettingsCtx) {
     TextButton(onClick = { selectingApps = true }) {
         Text("选择通知来源（${sc.s.notificationApps.size}）")
     }
-    Text(when {
-        sc.s.notificationApps.isEmpty() -> "尚未选择应用，通知识别已关闭"
-        !granted -> "已选 ${sc.s.notificationApps.size} 个应用，等待通知访问授权"
-        !listenerState.connected -> "已授权，等待通知识别连接"
-        else -> "通知识别已连接，仅处理所选应用的新通知"
-    }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(com.pickupcode.app.service.NotificationRecognitionStatus.description(sc.s.notificationApps.size, granted, listenerState),
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     if (granted && !listenerState.connected && sc.s.notificationApps.isNotEmpty()) TextButton(onClick = {
-        android.service.notification.NotificationListenerService.requestRebind(android.content.ComponentName(sc.ctx, com.pickupcode.app.service.SmsNotificationListener::class.java))
-    }) { Text("重新连接") }
+        com.pickupcode.app.service.NotificationListenerConnection.recover(sc.ctx)
+    }, enabled = listenerState.connection != com.pickupcode.app.service.NotificationRecognitionStatus.Connection.CONNECTING) { Text("重新连接") }
     if (sc.s.notificationApps.isNotEmpty()) TextButton(onClick = { openAccess() }) {
         Text(if (granted) "管理通知访问权限" else "开启通知访问权限")
     }
