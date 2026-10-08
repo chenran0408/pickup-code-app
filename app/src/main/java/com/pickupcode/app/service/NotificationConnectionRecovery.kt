@@ -4,13 +4,14 @@ package com.pickupcode.app.service
 internal suspend fun recoverNotificationConnection(
     enabled: suspend () -> Boolean,
     connected: () -> Boolean,
-    request: suspend () -> Unit,
+    request: suspend (resetStaleBinding: Boolean) -> Unit,
     awaitConnection: suspend () -> Unit,
 ): NotificationConnectionResult {
     repeat(3) {
         if (!enabled()) return NotificationConnectionResult.INACTIVE
         if (connected()) return NotificationConnectionResult.CONNECTED
-        request()
+        // requestRebind 在系统认为组件已启用时可能直接返回；第二轮才清理旧绑定状态。
+        request(it == 1)
         awaitConnection()
         if (!enabled()) return NotificationConnectionResult.INACTIVE
         if (connected()) return NotificationConnectionResult.CONNECTED

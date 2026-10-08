@@ -9,6 +9,7 @@ import com.pickupcode.app.preferences.AppPreferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -40,10 +41,20 @@ object NotificationListenerConnection {
                             selected && granted
                         },
                         connected = { NotificationRecognitionStatus.state.value.connected },
-                        request = {
+                        request = { resetStaleBinding ->
                             NotificationRecognitionStatus.connection(NotificationRecognitionStatus.Connection.CONNECTING)
-                            withContext(Dispatchers.IO) {
-                                NotificationListenerService.requestRebind(ComponentName(app, SmsNotificationListener::class.java))
+                            // 解绑与重绑必须成对完成，来源变化取消旧任务时也不能遗留系统 snoozed 状态。
+                            withContext(Dispatchers.IO + NonCancellable) {
+                                if (!NotificationRecognitionStatus.state.value.connected) {
+                                    val component = ComponentName(app, SmsNotificationListener::class.java)
+                                    try {
+                                        if (resetStaleBinding && android.os.Build.VERSION.SDK_INT >= 34) {
+                                            NotificationListenerService.requestUnbind(component)
+                                        }
+                                    } finally {
+                                        NotificationListenerService.requestRebind(component)
+                                    }
+                                }
                             }
                         },
                         awaitConnection = {

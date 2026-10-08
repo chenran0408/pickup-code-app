@@ -6,6 +6,21 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class NotificationConnectionRecoveryTest {
+    @Test fun `stale binding reset occurs once after ordinary rebind times out`() = runBlocking {
+        val resets = mutableListOf<Boolean>()
+        val result = recoverNotificationConnection({ true }, { false }, { resets += it }, {})
+        assertEquals(NotificationConnectionResult.FAILED, result)
+        assertEquals(listOf(false, true, false), resets)
+    }
+
+    @Test fun `successful ordinary rebind never resets listener`() = runBlocking {
+        var connected = false
+        val resets = mutableListOf<Boolean>()
+        val result = recoverNotificationConnection({ true }, { connected }, { resets += it }, { connected = true })
+        assertEquals(NotificationConnectionResult.CONNECTED, result)
+        assertEquals(listOf(false), resets)
+    }
+
     @Test fun `request returning does not imply connection and attempts are bounded`() = runBlocking {
         var requests = 0
         val result = recoverNotificationConnection({ true }, { false }, { requests++ }, {})
