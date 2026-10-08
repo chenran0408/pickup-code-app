@@ -23,7 +23,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import java.security.MessageDigest
 
-/** 可选的短信/微信入口：仅所选应用的新通知，本地识别，不调用在线 AI。 */
+/** 可选的短信、微信与购物应用入口：仅所选应用的新通知，本地识别，不调用在线 AI。 */
 class SmsNotificationListener : NotificationListenerService() {
     private val mutex = Mutex()
     private val recent = LinkedHashMap<String, String>()
@@ -46,31 +46,30 @@ class SmsNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val notification = sbn.notification ?: return
         val defaultSms = Telephony.Sms.getDefaultSmsPackage(this)
-        if (sbn.packageName == "com.android.mms" || sbn.packageName == defaultSms ||
-            sbn.packageName == SmsNotificationContent.WECHAT_PACKAGE) {
-            Log.d(TAG, "消息应用通知到达，来源匹配=${sbn.packageName == defaultSms}，摘要=${notification.flags and Notification.FLAG_GROUP_SUMMARY != 0}")
-        }
-        if (!SmsNotificationContent.acceptPackage(sbn.packageName, defaultSms,
-                notification.flags and Notification.FLAG_GROUP_SUMMARY != 0, wechatEnabled = true)) return
+        val source = SmsNotificationContent.sourceFor(sbn.packageName, defaultSms,
+            notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) ?: return
         App.appScope.launch {
             try {
                 mutex.withLock {
                     val settings = AppPreferences.observe(applicationContext).first()
                     if (!SmsNotificationContent.acceptPackage(sbn.packageName, defaultSms,
                             notification.flags and Notification.FLAG_GROUP_SUMMARY != 0,
-                            settings.enableSmsNotifications, settings.enableWechatNotifications)) return@withLock
-                    val isWechat = sbn.packageName == SmsNotificationContent.WECHAT_PACKAGE
-                    val sourceName = if (isWechat) "微信通知" else "短信通知"
-                    val sourceTag = if (isWechat) "wechat_notification" else "sms_notification"
+                            settings.enableSmsNotifications, settings.enableWechatNotifications,
+                            settings.enableTaobaoNotifications, settings.enablePinduoduoNotifications,
+                            settings.enableJdNotifications)) return@withLock
+                    val sourceName = "${source.label}通知"
+                    val sourceTag = source.tag
                     val extras = notification.extras ?: return@withLock
                     val messages = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(notification)
                         ?.messages.orEmpty().map {
                         SmsNotificationContent.Message(it.text?.toString().orEmpty(), it.person != null)
                     }
-                    val body = SmsNotificationContent.body(extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
+                    val visibleBody = SmsNotificationContent.body(extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
                         extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString(),
                         extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.map { it.toString() }.orEmpty(), messages)
-                    NotificationRecognitionStatus.received(isWechat, body.isNotBlank())
+                    val body = SmsNotificationContent.recognitionText(source,
+                        extras.getCharSequence(Notification.EXTRA_TITLE)?.toString(), visibleBody)
+                    NotificationRecognitionStatus.received(source, body.isNotBlank())
                     if (body.isBlank()) { Log.d(TAG, "$sourceName 无可读的收到消息正文"); return@withLock }
                     if (com.pickupcode.app.util.SensitivePageGuard.isIdentityCodePage(body)) return@withLock
                     val digest = MessageDigest.getInstance("SHA-256").digest(body.toByteArray())
@@ -92,7 +91,7 @@ class SmsNotificationListener : NotificationListenerService() {
                         for (record in saved.filterNot { it.existed }) RecognitionPipeline.notifySaved(
                             applicationContext, { repo.countDuplicateGroups() }, record.code, record.type,
                             record.source, record.id, false)
-                        NotificationRecognitionStatus.received(isWechat, true, saved.size)
+                        NotificationRecognitionStatus.received(source, true, saved.size)
                         Log.d(TAG, "$sourceName 识别完成，候选=${codes.size}，保存=${saved.size}")
                         true
                     }

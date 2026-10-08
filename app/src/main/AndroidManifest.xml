@@ -149,7 +149,7 @@
                 android:resource="@xml/volume_key_shortcut_config" />
         </service>
 
-        <!-- 短信取件码自动识别（SMS_RECEIVED 广播；需 RECEIVE_SMS 权限） -->
+        <!-- 可选应用通知识别；保留组件名以沿用已有通知访问授权。 -->
         <service
             android:name=".service.SmsNotificationListener"
             android:label="取件码通知识别"
@@ -159,6 +159,7 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+        <!-- 普通短信接收；需 RECEIVE_SMS 权限。 -->
         <receiver
             android:name=".service.SmsReceiver"
             android:exported="true"

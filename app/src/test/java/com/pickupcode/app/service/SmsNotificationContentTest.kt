@@ -65,4 +65,56 @@ class SmsNotificationContentTest {
         assertTrue(com.pickupcode.app.extractor.CodeValidator.validCodeFormatPatterns()
             .any { Regex(it).matches("7922-0881") })
     }
+    @Test fun `shopping packages require their own opt in and exact package`() {
+        val sources = listOf(SmsNotificationContent.Source.TAOBAO,
+            SmsNotificationContent.Source.PINDUODUO, SmsNotificationContent.Source.JD)
+        for (enabled in sources) {
+            fun accepts(pkg: String, summary: Boolean = false) = SmsNotificationContent.acceptPackage(
+                pkg, "com.android.mms", summary, false, false,
+                enabled == SmsNotificationContent.Source.TAOBAO,
+                enabled == SmsNotificationContent.Source.PINDUODUO,
+                enabled == SmsNotificationContent.Source.JD)
+            assertFalse(SmsNotificationContent.acceptPackage(enabled.packageName, null, false))
+            assertTrue(accepts(enabled.packageName))
+            assertEquals(enabled, SmsNotificationContent.sourceFor(enabled.packageName, null, false))
+            assertFalse(accepts(enabled.packageName + ".fake"))
+            assertFalse(accepts(enabled.packageName, true))
+            assertFalse(accepts("com.android.mms"))
+            assertFalse(accepts("com.tencent.mm"))
+            for (other in sources.filter { it != enabled }) assertFalse(accepts(other.packageName))
+        }
+        assertFalse(SmsNotificationContent.acceptPackage("com.bank", null, false, true, true, true, true, true))
+        assertFalse(SmsNotificationContent.acceptPackage("com.pickupcode.app", null, false, true, true, true, true, true))
+    }
+
+    @Test fun `shopping title and visible body provide pickup context without accepting OTP or logistics numbers`() {
+        for (source in listOf(SmsNotificationContent.Source.TAOBAO,
+            SmsNotificationContent.Source.PINDUODUO, SmsNotificationContent.Source.JD)) {
+            fun text(title: String, body: String) = SmsNotificationContent.recognitionText(source, title, body)
+            fun codes(title: String, body: String): Set<String> {
+                val text = text(title, body)
+                if (!SmsNotificationContent.hasPickupContext(text)) return emptySet()
+                return com.pickupcode.app.extractor.CodeExtractor.extract(text.lines().map {
+                    com.pickupcode.app.ocr.OCREngine.TextLine(it, null, 1f)
+                }).map { it.code }.toSet()
+            }
+            assertEquals(setOf("7-3-5268"), codes("包裹到站", "凭7-3-5268到青禾村24排4号取件"))
+            assertEquals(setOf("7-3-5268"), codes("取件码", "7-3-5268"))
+            assertTrue(codes("取件提醒", "").isEmpty())
+            assertTrue(codes("物流更新", "运单号435228469827702，正在运输").isEmpty())
+            assertTrue(codes("登录验证", "验证码618008，请勿泄露").isEmpty())
+            assertTrue(codes("取件提醒", "登录验证码618008，请勿泄露").isEmpty())
+            assertEquals("", text("取件码7-3-5268", ""))
+        }
+    }
+
+    @Test fun `shopping title is bounded and chat titles are excluded`() {
+        assertEquals(20000, SmsNotificationContent.recognitionText(SmsNotificationContent.Source.JD,
+            "a".repeat(1000), "b".repeat(25000)).length)
+        assertEquals("正文", SmsNotificationContent.recognitionText(SmsNotificationContent.Source.WECHAT,
+            "取件码7-3-5268", "正文"))
+        assertEquals("正文", SmsNotificationContent.recognitionText(SmsNotificationContent.Source.SMS,
+            "取件码7-3-5268", "正文"))
+    }
+
 }

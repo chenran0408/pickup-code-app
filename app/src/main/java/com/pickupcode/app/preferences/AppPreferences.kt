@@ -100,6 +100,9 @@ object AppPreferences {
     /** 是否识别新收到的短信（需 RECEIVE_SMS 权限，不扫描历史收件箱）。 */
     private val KEY_ENABLE_SMS_RECEIVE = booleanPreferencesKey("enable_sms_receive")
     private val KEY_ENABLE_WECHAT_NOTIFICATIONS = booleanPreferencesKey("enable_wechat_notifications")
+    private val KEY_ENABLE_TAOBAO_NOTIFICATIONS = booleanPreferencesKey("enable_taobao_notifications")
+    private val KEY_ENABLE_PINDUODUO_NOTIFICATIONS = booleanPreferencesKey("enable_pinduoduo_notifications")
+    private val KEY_ENABLE_JD_NOTIFICATIONS = booleanPreferencesKey("enable_jd_notifications")
     private val KEY_ENABLE_SMS_NOTIFICATIONS = booleanPreferencesKey("enable_sms_notifications")
 
     /** 是否启用到期提醒（快递码存放 3 天/文本时限到达时自动提醒；v6）。 */
@@ -127,6 +130,9 @@ object AppPreferences {
         val hideGuideCard: Boolean = false,
         val enableSmsReceive: Boolean = false,
         val enableWechatNotifications: Boolean = false,
+        val enableTaobaoNotifications: Boolean = false,
+        val enablePinduoduoNotifications: Boolean = false,
+        val enableJdNotifications: Boolean = false,
         val enableSmsNotifications: Boolean = false,
         val enableExpiryRemind: Boolean = true
     )
@@ -155,6 +161,9 @@ object AppPreferences {
                 hideGuideCard = prefs[KEY_HIDE_GUIDE_CARD] ?: false,
                 enableSmsReceive = prefs[KEY_ENABLE_SMS_RECEIVE] ?: false,
                 enableWechatNotifications = prefs[KEY_ENABLE_WECHAT_NOTIFICATIONS] ?: false,
+                enableTaobaoNotifications = prefs[KEY_ENABLE_TAOBAO_NOTIFICATIONS] ?: false,
+                enablePinduoduoNotifications = prefs[KEY_ENABLE_PINDUODUO_NOTIFICATIONS] ?: false,
+                enableJdNotifications = prefs[KEY_ENABLE_JD_NOTIFICATIONS] ?: false,
                 enableSmsNotifications = prefs[KEY_ENABLE_SMS_NOTIFICATIONS] ?: false,
                 enableExpiryRemind = prefs[KEY_ENABLE_EXPIRY_REMIND] ?: true
             )
@@ -236,6 +245,15 @@ object AppPreferences {
 
     suspend fun setEnableWechatNotifications(context: Context, value: Boolean) =
         write(context, KEY_ENABLE_WECHAT_NOTIFICATIONS, value)
+
+    suspend fun setEnableTaobaoNotifications(context: Context, value: Boolean) =
+        write(context, KEY_ENABLE_TAOBAO_NOTIFICATIONS, value)
+
+    suspend fun setEnablePinduoduoNotifications(context: Context, value: Boolean) =
+        write(context, KEY_ENABLE_PINDUODUO_NOTIFICATIONS, value)
+
+    suspend fun setEnableJdNotifications(context: Context, value: Boolean) =
+        write(context, KEY_ENABLE_JD_NOTIFICATIONS, value)
 
     suspend fun setEnableSmsNotifications(context: Context, value: Boolean) =
         write(context, KEY_ENABLE_SMS_NOTIFICATIONS, value)

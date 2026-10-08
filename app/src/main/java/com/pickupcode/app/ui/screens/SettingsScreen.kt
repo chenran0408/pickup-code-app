@@ -377,7 +377,7 @@ private fun InputMethodsSection(sc: SettingsCtx) {
         SettingsSubHeader("外部接收")
         SettingsSwitch("Intent 接收", icon = R.drawable.ic_link, sub = "接收来自其他App的分享（文本/图片）", checked = sc.s.enableIntentReceive, onChange = sc.save { AppPreferences.setEnableIntentReceive(sc.ctx, it) })
         SettingsSwitch("分享识别", icon = R.drawable.ic_upload, sub = "文本选择菜单/拖放直达时自动识别取餐取件码", checked = sc.s.enableShareDetection, onChange = sc.save { AppPreferences.setEnableShareDetection(sc.ctx, it) })
-        SettingsSubHeader("短信与微信识别")
+        SettingsSubHeader("短信与通知识别")
         SmsNotificationSettings(sc)
         SettingsSwitch(
             "短信取件码自动识别", icon = R.drawable.ic_send,
@@ -450,10 +450,35 @@ private fun SmsNotificationSettings(sc: SettingsCtx) {
             sc.saveRun { AppPreferences.setEnableWechatNotifications(sc.ctx, enabled) }
             if (enabled && !granted) openAccess()
         })
-    if (granted && !listenerState.connected && (sc.s.enableSmsNotifications || sc.s.enableWechatNotifications)) TextButton(onClick = {
+    val shoppingSources = listOf(
+        com.pickupcode.app.service.SmsNotificationContent.Source.TAOBAO to sc.s.enableTaobaoNotifications,
+        com.pickupcode.app.service.SmsNotificationContent.Source.PINDUODUO to sc.s.enablePinduoduoNotifications,
+        com.pickupcode.app.service.SmsNotificationContent.Source.JD to sc.s.enableJdNotifications)
+    for ((source, enabled) in shoppingSources) {
+        SettingsSwitch("${source.label}通知识别", icon = R.drawable.ic_send,
+            sub = when {
+                !enabled -> "仅识别${source.label}新通知中的取件信息，在本地处理"
+                !granted -> "等待通知访问授权"
+                !listenerState.connected -> "已授权，等待监听连接"
+                listenerState.events[source]?.readable == false -> "最近通知没有正文，请开启通知详情"
+                else -> "监听正常；通知中需包含码值，仅物流更新无法识别"
+            }, checked = enabled, onChange = { value ->
+                sc.saveRun {
+                    when (source) {
+                        com.pickupcode.app.service.SmsNotificationContent.Source.TAOBAO -> AppPreferences.setEnableTaobaoNotifications(sc.ctx, value)
+                        com.pickupcode.app.service.SmsNotificationContent.Source.PINDUODUO -> AppPreferences.setEnablePinduoduoNotifications(sc.ctx, value)
+                        com.pickupcode.app.service.SmsNotificationContent.Source.JD -> AppPreferences.setEnableJdNotifications(sc.ctx, value)
+                        else -> Unit
+                    }
+                }
+                if (value && !granted) openAccess()
+            })
+    }
+    val anyEnabled = sc.s.enableSmsNotifications || sc.s.enableWechatNotifications || shoppingSources.any { it.second }
+    if (granted && !listenerState.connected && anyEnabled) TextButton(onClick = {
         android.service.notification.NotificationListenerService.requestRebind(android.content.ComponentName(sc.ctx, com.pickupcode.app.service.SmsNotificationListener::class.java))
     }) { Text("重新连接监听") }
-    if (sc.s.enableSmsNotifications || sc.s.enableWechatNotifications) TextButton(onClick = { openAccess() }) {
+    if (anyEnabled) TextButton(onClick = { openAccess() }) {
         Text(if (granted) "管理通知访问权限" else "开启通知访问权限")
     }
 }
