@@ -21,22 +21,13 @@ object SmsNotificationContent {
             ?: Source.SMS.takeIf { !defaultSms.isNullOrBlank() && actual == defaultSms }
     }
 
-    fun acceptPackage(actual: String, defaultSms: String?, summary: Boolean,
-        smsEnabled: Boolean = true, wechatEnabled: Boolean = false,
-        taobaoEnabled: Boolean = false, pinduoduoEnabled: Boolean = false,
-        jdEnabled: Boolean = false): Boolean = when (sourceFor(actual, defaultSms, summary)) {
-        Source.SMS -> smsEnabled
-        Source.WECHAT -> wechatEnabled
-        Source.TAOBAO -> taobaoEnabled
-        Source.PINDUODUO -> pinduoduoEnabled
-        Source.JD -> jdEnabled
-        null -> false
-    }
-
     /** 购物通知可能把“取件码”放在标题、码值放在正文；不从只有标题的隐藏通知识别。 */
-    fun recognitionText(source: Source, title: String?, body: String): String {
+    fun recognitionText(source: Source, title: String?, body: String): String =
+        recognitionText(source.shopping, title, body)
+
+    fun recognitionText(includeTitle: Boolean, title: String?, body: String): String {
         if (body.isBlank()) return ""
-        return if (source.shopping && !title.isNullOrBlank())
+        return if (includeTitle && !title.isNullOrBlank())
             "${title.take(200)}\n$body".take(20000) else body.take(20000)
     }
 

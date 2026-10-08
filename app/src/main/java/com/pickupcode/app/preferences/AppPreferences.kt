@@ -99,6 +99,7 @@ object AppPreferences {
 
     /** 是否识别新收到的短信（需 RECEIVE_SMS 权限，不扫描历史收件箱）。 */
     private val KEY_ENABLE_SMS_RECEIVE = booleanPreferencesKey("enable_sms_receive")
+    private val KEY_NOTIFICATION_APPS = stringSetPreferencesKey("notification_apps")
     private val KEY_ENABLE_WECHAT_NOTIFICATIONS = booleanPreferencesKey("enable_wechat_notifications")
     private val KEY_ENABLE_TAOBAO_NOTIFICATIONS = booleanPreferencesKey("enable_taobao_notifications")
     private val KEY_ENABLE_PINDUODUO_NOTIFICATIONS = booleanPreferencesKey("enable_pinduoduo_notifications")
@@ -129,11 +130,7 @@ object AppPreferences {
         val hideAccessibilityCard: Boolean = false,
         val hideGuideCard: Boolean = false,
         val enableSmsReceive: Boolean = false,
-        val enableWechatNotifications: Boolean = false,
-        val enableTaobaoNotifications: Boolean = false,
-        val enablePinduoduoNotifications: Boolean = false,
-        val enableJdNotifications: Boolean = false,
-        val enableSmsNotifications: Boolean = false,
+        val notificationApps: Set<String> = emptySet(),
         val enableExpiryRemind: Boolean = true
     )
 
@@ -160,11 +157,7 @@ object AppPreferences {
                 hideAccessibilityCard = prefs[KEY_HIDE_ACCESSIBILITY_CARD] ?: false,
                 hideGuideCard = prefs[KEY_HIDE_GUIDE_CARD] ?: false,
                 enableSmsReceive = prefs[KEY_ENABLE_SMS_RECEIVE] ?: false,
-                enableWechatNotifications = prefs[KEY_ENABLE_WECHAT_NOTIFICATIONS] ?: false,
-                enableTaobaoNotifications = prefs[KEY_ENABLE_TAOBAO_NOTIFICATIONS] ?: false,
-                enablePinduoduoNotifications = prefs[KEY_ENABLE_PINDUODUO_NOTIFICATIONS] ?: false,
-                enableJdNotifications = prefs[KEY_ENABLE_JD_NOTIFICATIONS] ?: false,
-                enableSmsNotifications = prefs[KEY_ENABLE_SMS_NOTIFICATIONS] ?: false,
+                notificationApps = selectedNotificationApps(prefs),
                 enableExpiryRemind = prefs[KEY_ENABLE_EXPIRY_REMIND] ?: true
             )
         }.flowOn(Dispatchers.IO)
@@ -243,20 +236,24 @@ object AppPreferences {
     suspend fun setEnableSmsReceive(context: Context, value: Boolean) =
         write(context, KEY_ENABLE_SMS_RECEIVE, value)
 
-    suspend fun setEnableWechatNotifications(context: Context, value: Boolean) =
-        write(context, KEY_ENABLE_WECHAT_NOTIFICATIONS, value)
+    private fun selectedNotificationApps(prefs: Preferences): Set<String> =
+        com.pickupcode.app.service.NotificationAppSelection.resolve(prefs[KEY_NOTIFICATION_APPS],
+            prefs[KEY_ENABLE_SMS_NOTIFICATIONS] ?: false, prefs[KEY_ENABLE_WECHAT_NOTIFICATIONS] ?: false,
+            prefs[KEY_ENABLE_TAOBAO_NOTIFICATIONS] ?: false, prefs[KEY_ENABLE_PINDUODUO_NOTIFICATIONS] ?: false,
+            prefs[KEY_ENABLE_JD_NOTIFICATIONS] ?: false)
 
-    suspend fun setEnableTaobaoNotifications(context: Context, value: Boolean) =
-        write(context, KEY_ENABLE_TAOBAO_NOTIFICATIONS, value)
+    /** 通知预筛选只订阅包名，不为无关通知解密 AI/地图凭据。 */
+    fun observeNotificationApps(context: Context): Flow<Set<String>> = context.dataStore.data
+        .map { selectedNotificationApps(it) }.distinctUntilChanged().flowOn(Dispatchers.IO)
 
-    suspend fun setEnablePinduoduoNotifications(context: Context, value: Boolean) =
-        write(context, KEY_ENABLE_PINDUODUO_NOTIFICATIONS, value)
-
-    suspend fun setEnableJdNotifications(context: Context, value: Boolean) =
-        write(context, KEY_ENABLE_JD_NOTIFICATIONS, value)
-
-    suspend fun setEnableSmsNotifications(context: Context, value: Boolean) =
-        write(context, KEY_ENABLE_SMS_NOTIFICATIONS, value)
+    suspend fun setNotificationAppSelected(context: Context, packageName: String, selected: Boolean, selectionKey: String = packageName) {
+        context.dataStore.edit { prefs ->
+            val current = selectedNotificationApps(prefs)
+            val key = if (selectionKey == com.pickupcode.app.service.NotificationAppSelection.DEFAULT_SMS) selectionKey else packageName
+            prefs[KEY_NOTIFICATION_APPS] = if (selected && packageName != context.packageName) current + key
+                else current - packageName - key
+        }
+    }
 
     // ---------------------------------------------------------------
     // B6: API Key 加密（AndroidKeyStore AES-GCM，密文存 DataStore）

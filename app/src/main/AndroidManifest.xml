@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 用户可选择任意通知来源，含无桌面入口的系统应用；固定包名或 launcher 查询不能覆盖。
+         仅此权限使用 lint 局部例外，列表不上传；仓库通过 GitHub 分发。 -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
     <!-- 短信取件码自动识别（可选开关；RECEIVE_SMS 用于接收 SMS_RECEIVED 广播） -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
 

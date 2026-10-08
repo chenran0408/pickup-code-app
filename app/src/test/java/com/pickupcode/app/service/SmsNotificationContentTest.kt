@@ -11,13 +11,6 @@ class SmsNotificationContentTest {
         assertTrue(SmsNotificationContent.hasPickupContext("凭7-3-5268到青禾村24排4号取件"))
         assertTrue(SmsNotificationContent.hasPickupContext("取餐码A12，请到前台取餐"))
     }
-    @Test fun `only default SMS application non summary notices are accepted`() {
-        assertTrue(SmsNotificationContent.acceptPackage("com.android.mms", "com.android.mms", false))
-        assertFalse(SmsNotificationContent.acceptPackage("com.bank", "com.android.mms", false))
-        assertFalse(SmsNotificationContent.acceptPackage("com.pickupcode.app", "com.android.mms", false))
-        assertFalse(SmsNotificationContent.acceptPackage("com.android.mms", null, false))
-        assertFalse(SmsNotificationContent.acceptPackage("com.android.mms", "com.android.mms", true))
-    }
     @Test fun `only newest incoming message is used without old conversation codes`() {
         val messages = listOf(SmsNotificationContent.Message("旧取件码3-7-4162", true),
             SmsNotificationContent.Message("新取件码9-4-1526", true))
@@ -34,15 +27,6 @@ class SmsNotificationContentTest {
     }
     @Test fun `large notification bodies are bounded`() {
         assertEquals(20000, SmsNotificationContent.body("a".repeat(25000), null, emptyList(), emptyList()).length)
-    }
-
-    @Test fun `wechat switch is independent and package must match exactly`() {
-        assertTrue(SmsNotificationContent.acceptPackage("com.tencent.mm", null, false, false, true))
-        assertFalse(SmsNotificationContent.acceptPackage("com.tencent.mm", "com.android.mms", false, true, false))
-        assertFalse(SmsNotificationContent.acceptPackage("com.android.mms", "com.android.mms", false, false, true))
-        assertFalse(SmsNotificationContent.acceptPackage("com.tencent.mm.evil", null, false, false, true))
-        assertFalse(SmsNotificationContent.acceptPackage("com.tencent.mm", null, true, false, true))
-        assertFalse(SmsNotificationContent.acceptPackage("com.other.chat", null, false, true, true))
     }
 
     @Test fun `wechat visible pickup text extracts while hidden notices do not`() {
@@ -65,28 +49,6 @@ class SmsNotificationContentTest {
         assertTrue(com.pickupcode.app.extractor.CodeValidator.validCodeFormatPatterns()
             .any { Regex(it).matches("7922-0881") })
     }
-    @Test fun `shopping packages require their own opt in and exact package`() {
-        val sources = listOf(SmsNotificationContent.Source.TAOBAO,
-            SmsNotificationContent.Source.PINDUODUO, SmsNotificationContent.Source.JD)
-        for (enabled in sources) {
-            fun accepts(pkg: String, summary: Boolean = false) = SmsNotificationContent.acceptPackage(
-                pkg, "com.android.mms", summary, false, false,
-                enabled == SmsNotificationContent.Source.TAOBAO,
-                enabled == SmsNotificationContent.Source.PINDUODUO,
-                enabled == SmsNotificationContent.Source.JD)
-            assertFalse(SmsNotificationContent.acceptPackage(enabled.packageName, null, false))
-            assertTrue(accepts(enabled.packageName))
-            assertEquals(enabled, SmsNotificationContent.sourceFor(enabled.packageName, null, false))
-            assertFalse(accepts(enabled.packageName + ".fake"))
-            assertFalse(accepts(enabled.packageName, true))
-            assertFalse(accepts("com.android.mms"))
-            assertFalse(accepts("com.tencent.mm"))
-            for (other in sources.filter { it != enabled }) assertFalse(accepts(other.packageName))
-        }
-        assertFalse(SmsNotificationContent.acceptPackage("com.bank", null, false, true, true, true, true, true))
-        assertFalse(SmsNotificationContent.acceptPackage("com.pickupcode.app", null, false, true, true, true, true, true))
-    }
-
     @Test fun `shopping title and visible body provide pickup context without accepting OTP or logistics numbers`() {
         for (source in listOf(SmsNotificationContent.Source.TAOBAO,
             SmsNotificationContent.Source.PINDUODUO, SmsNotificationContent.Source.JD)) {
