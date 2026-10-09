@@ -63,7 +63,7 @@ fun AddressGroupHeader(
             modifier = Modifier.padding(start = 8.dp)
         )
         if (onDoneAll != null) {
-            TextButton(onClick = onDoneAll) { Text("本站已取") }
+            TextButton(onClick = onDoneAll) { Text("批量已取") }
         }
     }
 }

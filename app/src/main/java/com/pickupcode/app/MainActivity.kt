@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.pickupcode.app.data.AppDatabase
 import com.pickupcode.app.data.CodeHistory
@@ -42,6 +43,7 @@ import com.pickupcode.app.ui.theme.PickupCodeTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
 
     private var hasNotificationPermission by mutableStateOf(false)
@@ -51,7 +53,7 @@ class MainActivity : ComponentActivity() {
     // B3: showDuplicate 通知点击后待处理的去重入口跳转（onCreate/onNewIntent 置位，组合期消费）
     private var pendingDedup by mutableStateOf(false)
 
-    enum class Screen { Home, Settings, Detail, Trash, Stats, Dedup, SavedAddress, IdentityCode, Rules }
+    enum class Screen { Home, Settings, Detail, Trash, Stats, Dedup, SavedAddress, IdentityCode, Rules, NotificationApps }
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -62,7 +64,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         // 处理外部分享/拖放 Intent（首次启动时）
-        ShareReceiver.handle(this, intent, App.appScope)
+        if (savedInstanceState == null) ShareReceiver.handle(this, intent, App.appScope)
         // B3: 消费通知导航 extra（showDuplicate 的 show_dedup）
         consumeNotificationExtras(intent)
 
@@ -80,6 +82,10 @@ class MainActivity : ComponentActivity() {
             var currentScreen by rememberSaveable { mutableStateOf(Screen.Home.name) }
             var selectedCodeId by rememberSaveable { mutableLongStateOf(-1L) }
             var showManualDialog by rememberSaveable { mutableStateOf(false) }
+            var settingsPage by rememberSaveable { mutableStateOf(com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name) }
+            var settingsChildBack by rememberSaveable { mutableStateOf(Screen.Home.name) }
+            val drawerState = androidx.compose.material3.rememberDrawerState(androidx.compose.material3.DrawerValue.Closed)
+            val uiScope = rememberCoroutineScope()
             val screen = Screen.valueOf(currentScreen)
 
             val settings by AppPreferences.observe(this)
@@ -97,7 +103,35 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            val imageFeedback by com.pickupcode.app.share.SharedImageRecognition.session.feedback.collectAsStateWithLifecycle()
             PickupCodeTheme {
+                androidx.compose.material3.ModalNavigationDrawer(drawerState = drawerState,
+                    gesturesEnabled = screen == Screen.Home, drawerContent = {
+                    com.pickupcode.app.ui.components.AppDrawerContent { key ->
+                        uiScope.launch {
+                            drawerState.close()
+                            settingsChildBack = Screen.Home.name
+                            when (key) {
+                                "notification_apps" -> currentScreen = Screen.NotificationApps.name
+                                "rules" -> currentScreen = Screen.Rules.name
+                                "addresses" -> currentScreen = Screen.SavedAddress.name
+                                "stats" -> currentScreen = Screen.Stats.name
+                                "dedup" -> currentScreen = Screen.Dedup.name
+                                "trash" -> currentScreen = Screen.Trash.name
+                                else -> {
+                                    settingsPage = when (key) {
+                                        "input" -> com.pickupcode.app.ui.screens.SettingsPage.INPUT.name
+                                        "verify" -> com.pickupcode.app.ui.screens.SettingsPage.VERIFY.name
+                                        "appearance" -> com.pickupcode.app.ui.screens.SettingsPage.APPEARANCE.name
+                                        "about" -> com.pickupcode.app.ui.screens.SettingsPage.ABOUT.name
+                                        else -> com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name
+                                    }
+                                    currentScreen = Screen.Settings.name
+                                }
+                            }
+                        }
+                    }
+                }) {
                 when (screen) {
                     Screen.Home -> HomeScreen(
                         hasNotificationPermission = hasNotificationPermission,
@@ -123,22 +157,20 @@ class MainActivity : ComponentActivity() {
                                 AppPreferences.setHideGuideCard(this@MainActivity, true)
                             }
                         },
-                        onSettingsClick = { currentScreen = Screen.Settings.name },
+                        onOpenDrawer = { uiScope.launch { drawerState.open() } },
                         onItemClick = { id ->
                             selectedCodeId = id
                             currentScreen = Screen.Detail.name
                         },
                         onFabClick = { showManualDialog = true },
-                        onTrashClick = { currentScreen = Screen.Trash.name },
-                        onStatsClick = { currentScreen = Screen.Stats.name },
-                        onDedupClick = { currentScreen = Screen.Dedup.name },
                         onIdentityCodeClick = { currentScreen = Screen.IdentityCode.name }
                     )
                     Screen.Settings -> SettingsScreen(
+                        page = com.pickupcode.app.ui.screens.SettingsPage.valueOf(settingsPage),
                         onBack = { currentScreen = Screen.Home.name },
                         onStatsClick = { currentScreen = Screen.Stats.name },
-                        onSavedAddressClick = { currentScreen = Screen.SavedAddress.name },
-                        onRulesClick = { currentScreen = Screen.Rules.name }
+                        onSavedAddressClick = { settingsChildBack = Screen.Settings.name; currentScreen = Screen.SavedAddress.name },
+                        onRulesClick = { settingsChildBack = Screen.Settings.name; currentScreen = Screen.Rules.name }
                     )
                     Screen.Detail -> DetailScreenWrapper(
                         codeId = selectedCodeId,
@@ -155,16 +187,35 @@ class MainActivity : ComponentActivity() {
                         onBack = { currentScreen = Screen.Home.name }
                     )
                     Screen.SavedAddress -> SavedAddressScreen(
-                        onBack = { currentScreen = Screen.Settings.name }
+                        onBack = { currentScreen = settingsChildBack }
                     )
                     Screen.IdentityCode -> IdentityCodeScreen(
                         onBack = { currentScreen = Screen.Home.name }
                     )
+                    Screen.NotificationApps -> com.pickupcode.app.ui.screens.NotificationAppsScreen(
+                        onBack = { currentScreen = Screen.Home.name },
+                        onRequestAccess = { com.pickupcode.app.service.SmsNotificationListener.openAccess(this@MainActivity) }
+                    )
                     Screen.Rules -> RulesScreen(
-                        onBack = { currentScreen = Screen.Settings.name }
+                        onBack = { currentScreen = settingsChildBack }
                     )
                 }
 
+                }
+                BackHandler(enabled = drawerState.isOpen) { uiScope.launch { drawerState.close() } }
+                imageFeedback?.let { feedback ->
+                    com.pickupcode.app.ui.components.SharedImageResultDialog(feedback,
+                        onDismiss = { com.pickupcode.app.share.SharedImageRecognition.session.dismiss(feedback.id) },
+                        onDetail = { id ->
+                            com.pickupcode.app.share.SharedImageRecognition.session.dismiss(feedback.id)
+                            selectedCodeId = id
+                            currentScreen = Screen.Detail.name
+                        },
+                        onManual = {
+                            com.pickupcode.app.share.SharedImageRecognition.session.dismiss(feedback.id)
+                            showManualDialog = true
+                        })
+                }
                 if (showManualDialog) {
                     ManualCodeDialog(
                         onDismiss = { showManualDialog = false },
@@ -181,6 +232,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         // 处理外部分享/拖放 Intent（App已在运行中时）
         ShareReceiver.handle(this, intent, App.appScope)
         // B3: 消费通知导航 extra（showDuplicate 的 show_dedup）

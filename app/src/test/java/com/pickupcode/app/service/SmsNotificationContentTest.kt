@@ -11,13 +11,6 @@ class SmsNotificationContentTest {
         assertTrue(SmsNotificationContent.hasPickupContext("凭7-3-5268到青禾村24排4号取件"))
         assertTrue(SmsNotificationContent.hasPickupContext("取餐码A12，请到前台取餐"))
     }
-    @Test fun `only default SMS application non summary notices are accepted`() {
-        assertTrue(SmsNotificationContent.acceptPackage("com.android.mms", "com.android.mms", false))
-        assertFalse(SmsNotificationContent.acceptPackage("com.bank", "com.android.mms", false))
-        assertFalse(SmsNotificationContent.acceptPackage("com.pickupcode.app", "com.android.mms", false))
-        assertFalse(SmsNotificationContent.acceptPackage("com.android.mms", null, false))
-        assertFalse(SmsNotificationContent.acceptPackage("com.android.mms", "com.android.mms", true))
-    }
     @Test fun `only newest incoming message is used without old conversation codes`() {
         val messages = listOf(SmsNotificationContent.Message("旧取件码3-7-4162", true),
             SmsNotificationContent.Message("新取件码9-4-1526", true))
@@ -34,15 +27,6 @@ class SmsNotificationContentTest {
     }
     @Test fun `large notification bodies are bounded`() {
         assertEquals(20000, SmsNotificationContent.body("a".repeat(25000), null, emptyList(), emptyList()).length)
-    }
-
-    @Test fun `wechat switch is independent and package must match exactly`() {
-        assertTrue(SmsNotificationContent.acceptPackage("com.tencent.mm", null, false, false, true))
-        assertFalse(SmsNotificationContent.acceptPackage("com.tencent.mm", "com.android.mms", false, true, false))
-        assertFalse(SmsNotificationContent.acceptPackage("com.android.mms", "com.android.mms", false, false, true))
-        assertFalse(SmsNotificationContent.acceptPackage("com.tencent.mm.evil", null, false, false, true))
-        assertFalse(SmsNotificationContent.acceptPackage("com.tencent.mm", null, true, false, true))
-        assertFalse(SmsNotificationContent.acceptPackage("com.other.chat", null, false, true, true))
     }
 
     @Test fun `wechat visible pickup text extracts while hidden notices do not`() {
@@ -65,4 +49,34 @@ class SmsNotificationContentTest {
         assertTrue(com.pickupcode.app.extractor.CodeValidator.validCodeFormatPatterns()
             .any { Regex(it).matches("7922-0881") })
     }
+    @Test fun `shopping title and visible body provide pickup context without accepting OTP or logistics numbers`() {
+        for (source in listOf(SmsNotificationContent.Source.TAOBAO,
+            SmsNotificationContent.Source.PINDUODUO, SmsNotificationContent.Source.JD)) {
+            fun text(title: String, body: String) = SmsNotificationContent.recognitionText(source, title, body)
+            fun codes(title: String, body: String): Set<String> {
+                val text = text(title, body)
+                if (!SmsNotificationContent.hasPickupContext(text)) return emptySet()
+                return com.pickupcode.app.extractor.CodeExtractor.extract(text.lines().map {
+                    com.pickupcode.app.ocr.OCREngine.TextLine(it, null, 1f)
+                }).map { it.code }.toSet()
+            }
+            assertEquals(setOf("7-3-5268"), codes("包裹到站", "凭7-3-5268到青禾村24排4号取件"))
+            assertEquals(setOf("7-3-5268"), codes("取件码", "7-3-5268"))
+            assertTrue(codes("取件提醒", "").isEmpty())
+            assertTrue(codes("物流更新", "运单号435228469827702，正在运输").isEmpty())
+            assertTrue(codes("登录验证", "验证码618008，请勿泄露").isEmpty())
+            assertTrue(codes("取件提醒", "登录验证码618008，请勿泄露").isEmpty())
+            assertEquals("", text("取件码7-3-5268", ""))
+        }
+    }
+
+    @Test fun `shopping title is bounded and chat titles are excluded`() {
+        assertEquals(20000, SmsNotificationContent.recognitionText(SmsNotificationContent.Source.JD,
+            "a".repeat(1000), "b".repeat(25000)).length)
+        assertEquals("正文", SmsNotificationContent.recognitionText(SmsNotificationContent.Source.WECHAT,
+            "取件码7-3-5268", "正文"))
+        assertEquals("正文", SmsNotificationContent.recognitionText(SmsNotificationContent.Source.SMS,
+            "取件码7-3-5268", "正文"))
+    }
+
 }

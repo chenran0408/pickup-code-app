@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -88,9 +89,14 @@ private data class SettingsCtx(
     }
 }
 
+enum class SettingsPage(val title: String) {
+    RECOGNITION("识别偏好"), INPUT("识别方式与权限"), VERIFY("AI 与辅助识别"), APPEARANCE("主题与显示"), ABOUT("关于与反馈")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    page: SettingsPage = SettingsPage.RECOGNITION,
     onBack: () -> Unit,
     onStatsClick: () -> Unit = {},
     onSavedAddressClick: () -> Unit = {},
@@ -166,7 +172,7 @@ fun SettingsScreen(
         containerColor = MaterialTheme.colorScheme.background, // 与主页背景一致（跟随主题）
         topBar = {
             TopAppBar(
-                title = { Text("设置") },
+                title = { Text(page.title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 },
@@ -176,7 +182,7 @@ fun SettingsScreen(
             )
         }
     ) { pad ->
-        // 只有 6 个固定卡片：LazyColumn 的懒加载/测量管理是多余开销，改用 Column + verticalScroll
+        // 侧边栏按功能进入，各页只组合需要的设置卡片。
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -185,16 +191,13 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            RecognitionSettingsSection(sc)
-            RulesSection(onRulesClick)
-            InputMethodsSection(sc)
-            NotificationStatusCard(sc)
-            VerifyServicesSection(sc)
-            SavedAddressSection(onSavedAddressClick)
-            LearningStatsSection(sc, onStatsClick)
-            AppearanceSection(sc)
-            RecognitionFeedbackSection()
-            AboutSection(sc)
+            when (page) {
+                SettingsPage.RECOGNITION -> { RecognitionSettingsSection(sc); RulesSection(onRulesClick) }
+                SettingsPage.INPUT -> { InputMethodsSection(sc); NotificationStatusCard(sc) }
+                SettingsPage.VERIFY -> { VerifyServicesSection(sc); SavedAddressSection(onSavedAddressClick) }
+                SettingsPage.APPEARANCE -> AppearanceSection(sc)
+                SettingsPage.ABOUT -> { LearningStatsSection(sc, onStatsClick); RecognitionFeedbackSection(); AboutSection(sc) }
+            }
         }
     }
 }
@@ -377,7 +380,7 @@ private fun InputMethodsSection(sc: SettingsCtx) {
         SettingsSubHeader("外部接收")
         SettingsSwitch("Intent 接收", icon = R.drawable.ic_link, sub = "接收来自其他App的分享（文本/图片）", checked = sc.s.enableIntentReceive, onChange = sc.save { AppPreferences.setEnableIntentReceive(sc.ctx, it) })
         SettingsSwitch("分享识别", icon = R.drawable.ic_upload, sub = "文本选择菜单/拖放直达时自动识别取餐取件码", checked = sc.s.enableShareDetection, onChange = sc.save { AppPreferences.setEnableShareDetection(sc.ctx, it) })
-        SettingsSubHeader("短信与微信识别")
+        SettingsSubHeader("短信与通知识别")
         SmsNotificationSettings(sc)
         SettingsSwitch(
             "短信取件码自动识别", icon = R.drawable.ic_send,
@@ -416,45 +419,27 @@ private fun SmsNotificationSettings(sc: SettingsCtx) {
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
-    fun openAccess() {
-        try {
-            val component = android.content.ComponentName(sc.ctx, com.pickupcode.app.service.SmsNotificationListener::class.java)
-            val intent = if (Build.VERSION.SDK_INT >= 30) Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
-                .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString())
-            else Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-            sc.ctx.startActivity(intent)
-        } catch (_: Exception) {
-            runCatching { sc.ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
-                .onFailure { Toast.makeText(sc.ctx, "请在系统设置中开启取件码通知识别的通知访问权限", Toast.LENGTH_LONG).show() }
-        }
+    fun openAccess() { com.pickupcode.app.service.SmsNotificationListener.openAccess(sc.ctx) }
+    var selectingApps by rememberSaveable { mutableStateOf(false) }
+    TextButton(onClick = { selectingApps = true }) {
+        Text("选择通知来源（${sc.s.notificationApps.size}）")
     }
-    SettingsSwitch("短信通知识别（含网络短信）", icon = R.drawable.ic_send,
-        sub = when {
-            !sc.s.enableSmsNotifications -> "仅识别默认短信应用的通知正文，在本地处理"
-            !granted -> "等待通知访问授权"
-            !listenerState.connected -> "已授权，等待监听连接"
-            listenerState.sms?.readable == false -> "最近通知没有正文，请开启短信通知详情"
-            else -> "监听正常；需短信通知显示正文"
-        }, checked = sc.s.enableSmsNotifications, onChange = { enabled ->
-            sc.saveRun { AppPreferences.setEnableSmsNotifications(sc.ctx, enabled) }
-            if (enabled && !granted) openAccess()
-        })
-    SettingsSwitch("微信通知识别", icon = R.drawable.ic_send,
-        sub = when {
-            !sc.s.enableWechatNotifications -> "仅识别微信新通知正文，本地处理取件码和取餐码"
-            !granted -> "等待通知访问授权"
-            !listenerState.connected -> "已授权，等待监听连接"
-            listenerState.wechat?.readable == false -> "最近通知没有正文，请开启微信消息详情"
-            else -> "监听正常；聊天前台或免打扰无通知时无法识别"
-        }, checked = sc.s.enableWechatNotifications, onChange = { enabled ->
-            sc.saveRun { AppPreferences.setEnableWechatNotifications(sc.ctx, enabled) }
-            if (enabled && !granted) openAccess()
-        })
-    if (granted && !listenerState.connected && (sc.s.enableSmsNotifications || sc.s.enableWechatNotifications)) TextButton(onClick = {
+    Text(when {
+        sc.s.notificationApps.isEmpty() -> "尚未选择应用，通知识别已关闭"
+        !granted -> "已选 ${sc.s.notificationApps.size} 个应用，等待通知访问授权"
+        !listenerState.connected -> "已授权，等待监听连接"
+        else -> "监听正常；仅识别已选应用的新通知，不读取历史消息"
+    }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (granted && !listenerState.connected && sc.s.notificationApps.isNotEmpty()) TextButton(onClick = {
         android.service.notification.NotificationListenerService.requestRebind(android.content.ComponentName(sc.ctx, com.pickupcode.app.service.SmsNotificationListener::class.java))
     }) { Text("重新连接监听") }
-    if (sc.s.enableSmsNotifications || sc.s.enableWechatNotifications) TextButton(onClick = { openAccess() }) {
+    if (sc.s.notificationApps.isNotEmpty()) TextButton(onClick = { openAccess() }) {
         Text(if (granted) "管理通知访问权限" else "开启通知访问权限")
+    }
+    if (selectingApps) androidx.compose.ui.window.Dialog(
+        onDismissRequest = { selectingApps = false },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        NotificationAppsScreen(onBack = { selectingApps = false }, onRequestAccess = { openAccess() })
     }
 }
 
@@ -545,7 +530,7 @@ private fun NotificationStatusCard(sc: SettingsCtx) {
 private fun RulesSection(onRulesClick: () -> Unit) {
     SettingsSectionCard(
         title = "识别规则",
-        subtitle = "查看/停用/改写内置正则，也能自己添加规则；改坏了可一键还原"
+        subtitle = "添加或调整识别规则，可随时恢复默认"
     ) {
         OutlinedButton(
             onClick = onRulesClick,
@@ -577,7 +562,7 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
     var probeOk by remember { mutableStateOf(false) }
     val uiScope = rememberCoroutineScope()
 
-    SettingsSectionCard(title = "辅助验证", subtitle = "第三方服务验证 OCR 结果（需联网，可选）") {
+    SettingsSectionCard(title = "辅助识别", subtitle = "用 AI、地图或快递服务补充识别（可选，需联网）") {
         SettingsSubHeader("地图验证", icon = R.drawable.ic_map)
         SettingsSwitch(
             "启用地图验证",

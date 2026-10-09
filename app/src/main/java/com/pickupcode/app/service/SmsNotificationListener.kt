@@ -3,6 +3,7 @@ package com.pickupcode.app.service
 import android.app.Notification
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.provider.Settings
 import android.provider.Telephony
 import android.service.notification.NotificationListenerService
@@ -23,7 +24,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import java.security.MessageDigest
 
-/** 可选的短信/微信入口：仅所选应用的新通知，本地识别，不调用在线 AI。 */
+/** 可选的用户所选应用入口：仅所选应用的新通知，本地识别，不调用在线 AI。 */
 class SmsNotificationListener : NotificationListenerService() {
     private val mutex = Mutex()
     private val recent = LinkedHashMap<String, String>()
@@ -46,31 +47,33 @@ class SmsNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val notification = sbn.notification ?: return
         val defaultSms = Telephony.Sms.getDefaultSmsPackage(this)
-        if (sbn.packageName == "com.android.mms" || sbn.packageName == defaultSms ||
-            sbn.packageName == SmsNotificationContent.WECHAT_PACKAGE) {
-            Log.d(TAG, "消息应用通知到达，来源匹配=${sbn.packageName == defaultSms}，摘要=${notification.flags and Notification.FLAG_GROUP_SUMMARY != 0}")
-        }
-        if (!SmsNotificationContent.acceptPackage(sbn.packageName, defaultSms,
-                notification.flags and Notification.FLAG_GROUP_SUMMARY != 0, wechatEnabled = true)) return
+        val summary = notification.flags and Notification.FLAG_GROUP_SUMMARY != 0
+        if (summary || sbn.packageName == packageName) return
         App.appScope.launch {
             try {
+                val selected = AppPreferences.observeNotificationApps(applicationContext).first()
+                if (!NotificationAppSelection.accepts(sbn.packageName, defaultSms, summary, packageName, selected)) return@launch
                 mutex.withLock {
                     val settings = AppPreferences.observe(applicationContext).first()
-                    if (!SmsNotificationContent.acceptPackage(sbn.packageName, defaultSms,
-                            notification.flags and Notification.FLAG_GROUP_SUMMARY != 0,
-                            settings.enableSmsNotifications, settings.enableWechatNotifications)) return@withLock
-                    val isWechat = sbn.packageName == SmsNotificationContent.WECHAT_PACKAGE
-                    val sourceName = if (isWechat) "微信通知" else "短信通知"
-                    val sourceTag = if (isWechat) "wechat_notification" else "sms_notification"
+                    if (!NotificationAppSelection.accepts(sbn.packageName, defaultSms, summary,
+                            packageName, settings.notificationApps)) return@withLock
+                    val source = SmsNotificationContent.sourceFor(sbn.packageName, defaultSms, false)
+                    val sourceName = source?.label?.plus("通知") ?: runCatching {
+                        packageManager.getApplicationLabel(packageManager.getApplicationInfo(sbn.packageName, 0)).toString()
+                    }.getOrDefault(sbn.packageName)
+                    val sourceTag = source?.tag ?: "app_notification"
                     val extras = notification.extras ?: return@withLock
                     val messages = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(notification)
                         ?.messages.orEmpty().map {
                         SmsNotificationContent.Message(it.text?.toString().orEmpty(), it.person != null)
                     }
-                    val body = SmsNotificationContent.body(extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
+                    val visibleBody = SmsNotificationContent.body(extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
                         extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString(),
                         extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.map { it.toString() }.orEmpty(), messages)
-                    NotificationRecognitionStatus.received(isWechat, body.isNotBlank())
+                    val body = SmsNotificationContent.recognitionText(
+                        source != SmsNotificationContent.Source.SMS && source != SmsNotificationContent.Source.WECHAT,
+                        extras.getCharSequence(Notification.EXTRA_TITLE)?.toString(), visibleBody)
+                    NotificationRecognitionStatus.received(sbn.packageName, body.isNotBlank())
                     if (body.isBlank()) { Log.d(TAG, "$sourceName 无可读的收到消息正文"); return@withLock }
                     if (com.pickupcode.app.util.SensitivePageGuard.isIdentityCodePage(body)) return@withLock
                     val digest = MessageDigest.getInstance("SHA-256").digest(body.toByteArray())
@@ -92,7 +95,7 @@ class SmsNotificationListener : NotificationListenerService() {
                         for (record in saved.filterNot { it.existed }) RecognitionPipeline.notifySaved(
                             applicationContext, { repo.countDuplicateGroups() }, record.code, record.type,
                             record.source, record.id, false)
-                        NotificationRecognitionStatus.received(isWechat, true, saved.size)
+                        NotificationRecognitionStatus.received(sbn.packageName, true, saved.size)
                         Log.d(TAG, "$sourceName 识别完成，候选=${codes.size}，保存=${saved.size}")
                         true
                     }
@@ -108,6 +111,19 @@ class SmsNotificationListener : NotificationListenerService() {
 
     companion object {
         private const val TAG = "SmsNotificationListener"
+        fun openAccess(context: Context) {
+            try {
+                val component = ComponentName(context, SmsNotificationListener::class.java)
+                val intent = if (android.os.Build.VERSION.SDK_INT >= 30) Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                    .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString())
+                else Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                if (context !is android.app.Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } catch (_: Exception) {
+                runCatching { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    .onFailure { android.widget.Toast.makeText(context, "请在系统设置中开启取件码通知识别的通知访问权限", android.widget.Toast.LENGTH_LONG).show() }
+            }
+        }
         fun hasAccess(context: Context): Boolean {
             val component = ComponentName(context, SmsNotificationListener::class.java)
             return Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")

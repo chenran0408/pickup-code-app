@@ -49,7 +49,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.material3.*
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -98,12 +98,9 @@ fun HomeScreen(
     onEnableAccessibility: () -> Unit,
     onHideAccessibilityCard: () -> Unit,
     onHideGuideCard: () -> Unit,
-    onSettingsClick: () -> Unit,
+    onOpenDrawer: () -> Unit,
     onItemClick: (Long) -> Unit,
     onFabClick: () -> Unit,
-    onTrashClick: () -> Unit,
-    onStatsClick: () -> Unit,
-    onDedupClick: () -> Unit,
     onIdentityCodeClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -112,10 +109,8 @@ fun HomeScreen(
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.Factory(db.repository))
     val activeHistory by vm.activeHistory.collectAsStateWithLifecycle()
     val completedHistory by vm.completedHistory.collectAsStateWithLifecycle()
-    val trashHistory by vm.trashHistory.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val dedupCount by vm::dedupCount
     var typeFilter by rememberSaveable { mutableStateOf("all") }
     var guideExpanded by remember { mutableStateOf(false) }
     // 分组方式：time=按时间 / address=按地址聚合（rememberSaveable：旋转屏幕保持）
@@ -149,7 +144,6 @@ fun HomeScreen(
             scope.launch { snackbarHostState.showSnackbar("没有可用的分享应用") }
         }
     }
-    var moreMenu by remember { mutableStateOf(false) }
     var statusMenu by remember { mutableStateOf(false) }
     var groupingMenu by remember { mutableStateOf(false) }
     var confirmGroup by remember { mutableStateOf<List<CodeHistory>?>(null) }
@@ -196,7 +190,7 @@ fun HomeScreen(
     confirmGroup?.let { items ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmGroup = null },
-            title = { Text("本站全部已取？") },
+            title = { Text("全部标记已取？") },
             text = { Text("将 ${items.first().pickupAddress} 的 ${items.size} 条记录标记为已取，可撤销。") },
             confirmButton = {
                 TextButton(onClick = {
@@ -213,7 +207,6 @@ fun HomeScreen(
         )
     }
 
-    LaunchedEffect(activeHistory) { vm.refreshDedupCount() }
 
     Scaffold(
         topBar = {
@@ -221,6 +214,7 @@ fun HomeScreen(
                 title = {
                     Text("码上闪记", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 },
+                navigationIcon = { IconButton(onClick = onOpenDrawer) { Icon(Icons.Default.Menu, "打开侧边栏") } },
                 actions = {
                     // 右上角三个辅助动作图标：2026-09-18 用户指定换成附件里的线性图标（Lucide 风格），
                     // 统一用 onSurface 上色（比默认的 onSurfaceVariant 更深）+ 20dp（用户反馈 24dp 偏大）
@@ -231,22 +225,7 @@ fun HomeScreen(
                         Icon(Icons.Default.Share, contentDescription = "分享当前未取码", modifier = iconModifier,
                             tint = actionTint)
                     }
-                    Box {
-                        IconButton(onClick = { moreMenu = true }) { Icon(Icons.Default.MoreVert, "更多功能") }
-                        DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
-                            DropdownMenuItem(text = { Text("回收站 (${trashHistory.size})") }, onClick = { moreMenu = false; onTrashClick() })
-                            DropdownMenuItem(text = { Text("识别统计") }, onClick = { moreMenu = false; onStatsClick() })
-                            if (dedupCount > 0) DropdownMenuItem(text = { Text("重复记录 ($dedupCount)") }, onClick = { moreMenu = false; onDedupClick() })
-                        }
-                    }
-                    IconButton(onClick = onSettingsClick) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_action_list),
-                            contentDescription = "设置",
-                            colorFilter = ColorFilter.tint(actionTint),
-                            modifier = iconModifier
-                        )
-                    }
+
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
