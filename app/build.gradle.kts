@@ -35,8 +35,8 @@ android {
         // ⚠️ 打 tag 时必须让 tag 落在版本号 bump 的提交（或其之后）上 —— v1.0.9 出现过 tag 与产物错位；
         //    release.yml 现已加"APK versionName == tag"校验来拦截这类失误。
         //   28 / 1.2.0  —— 短信/微信通知识别、验证码排除、已取历史、首页快捷操作和 arm64 压缩发布
-        versionCode = 28
-        versionName = "1.2.0"
+        versionCode = 29
+        versionName = "1.3.0"
     }
 
     signingConfigs {
@@ -127,6 +127,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("top.yukonga.miuix.kmp:miuix:0.3.0")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")

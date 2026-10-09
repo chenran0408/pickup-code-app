@@ -3,7 +3,9 @@ package com.pickupcode.app.ui.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FilterChipDefaults
+import com.pickupcode.app.ui.miuix.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -91,7 +93,7 @@ fun ManualCodeDialog(
                     OutlinedTextField(
                         value = input,
                         onValueChange = { input = it.take(30_001) },
-                        label = { Text(if (isImportText) "分享文本" else "取件码 / 取餐码") },
+                        labelText = if (isImportText) "分享文本" else "取件码 / 取餐码",
                         placeholder = { Text("输入码值，或粘贴分享导出的整段文本") },
                         singleLine = !isImportText,
                         maxLines = if (isImportText) 7 else 1,
@@ -128,7 +130,7 @@ fun ManualCodeDialog(
                     }
                 } else {
                     OutlinedTextField(value = source, onValueChange = { source = it },
-                        label = { Text("来源（可选）") }, placeholder = { Text("如：菜鸟驿站") },
+                        labelText = "来源（可选）", placeholder = { Text("如：菜鸟驿站") },
                         singleLine = true, modifier = Modifier.fillMaxWidth())
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(selected = codeType == "pickup_parcel",

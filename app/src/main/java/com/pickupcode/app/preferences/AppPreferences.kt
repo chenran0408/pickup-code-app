@@ -38,6 +38,11 @@ object AppPreferences {
     fun observeTheme(context: Context): Flow<String> = context.dataStore.data
         .map { it[KEY_DARK_MODE] ?: "system" }.distinctUntilChanged()
 
+    data class Appearance(val mode: String = "system", val largeText: Boolean = false)
+    /** 仅订阅显示设置，不为字号变化读取加密的识别配置。 */
+    fun observeAppearance(context: Context): Flow<Appearance> = context.dataStore.data
+        .map { Appearance(it[KEY_DARK_MODE] ?: "system", it[KEY_LARGE_TEXT] ?: false) }.distinctUntilChanged()
+
     private const val TAG = "AppPreferences"
 
     /** 识别置信度阈值（默认 0.5）：低于阈值的正则结果不展示（AI 结果目前不过此阈值）。 */
@@ -54,6 +59,7 @@ object AppPreferences {
 
     /** 主题模式："system" 跟随系统 / "light" / "dark"（对应 Theme.kt 的三态）。 */
     private val KEY_DARK_MODE = stringPreferencesKey("dark_mode")
+    private val KEY_LARGE_TEXT = booleanPreferencesKey("large_text")
 
     /** AI 识别 API Key（任意 OpenAI 兼容服务；B6 加密存储：AndroidKeyStore AES-GCM 密文写入 DataStore）。 */
     private val KEY_API_KEY = stringPreferencesKey("api_key")
@@ -116,6 +122,7 @@ object AppPreferences {
         val enableParcelCodes: Boolean = true,
         val enableCouponCodes: Boolean = true,
         val darkMode: String = "system",
+        val largeText: Boolean = false,
         val apiKey: String = "",
         val apiBaseUrl: String = "https://api.openai.com/v1",
         val apiModel: String = "gpt-4o-mini",
@@ -143,6 +150,7 @@ object AppPreferences {
                 enableParcelCodes = prefs[KEY_ENABLE_PARCEL] ?: true,
                 enableCouponCodes = prefs[KEY_ENABLE_COUPON] ?: true,
                 darkMode = prefs[KEY_DARK_MODE] ?: "system",
+                largeText = prefs[KEY_LARGE_TEXT] ?: false,
                 apiKey = decrypt(prefs[KEY_API_KEY] ?: ""),
                 apiBaseUrl = prefs[KEY_API_BASE_URL] ?: "https://api.openai.com/v1",
                 apiModel = prefs[KEY_API_MODEL] ?: "gpt-4o-mini",
@@ -193,6 +201,9 @@ object AppPreferences {
 
     suspend fun setDarkMode(context: Context, value: String) =
         write(context, KEY_DARK_MODE, value)
+
+    suspend fun setLargeText(context: Context, value: Boolean) =
+        write(context, KEY_LARGE_TEXT, value)
 
     suspend fun setApiKey(context: Context, value: String) =
         writeEncrypted(context, KEY_API_KEY, value)

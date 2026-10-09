@@ -1,7 +1,10 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.pickupcode.app.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,23 +18,23 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
+import com.pickupcode.app.ui.miuix.AlertDialog
+import com.pickupcode.app.ui.miuix.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Card
+import com.pickupcode.app.ui.miuix.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.pickupcode.app.ui.miuix.FilterChip
+import com.pickupcode.app.ui.miuix.Icon
+import com.pickupcode.app.ui.miuix.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
+import com.pickupcode.app.ui.miuix.OutlinedTextField
+import com.pickupcode.app.ui.miuix.Scaffold
+import com.pickupcode.app.ui.miuix.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import com.pickupcode.app.ui.miuix.Switch
+import com.pickupcode.app.ui.miuix.Text
+import com.pickupcode.app.ui.miuix.TextButton
+import com.pickupcode.app.ui.miuix.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -98,7 +101,7 @@ fun RulesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("识别规则") },
+                title = "自定义规则",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
@@ -160,7 +163,7 @@ fun RulesScreen(onBack: () -> Unit) {
                 ) {
                     IconText(
                         R.drawable.ic_brain, "我的规则（${myRules.size}）",
-                        iconSize = 18.dp, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
+                        modifier = Modifier.weight(1f), iconSize = 18.dp, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
                     )
                     TextButton(onClick = { adding = true }) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -343,13 +346,13 @@ private fun BuiltinRuleRow(
         Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = if (info.enabled) MaterialTheme.colorScheme.surface
-            else MaterialTheme.colorScheme.surfaceVariant
+            else MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
                             info.label,
                             style = MaterialTheme.typography.bodyMedium,
@@ -390,7 +393,7 @@ private fun BuiltinRuleRow(
                 Switch(checked = info.enabled, onCheckedChange = onToggle)
             }
             if (info.editable || info.overridden || !info.enabled) {
-                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                FlowRow(horizontalArrangement = Arrangement.End, verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                     if (info.editable) {
                         TextButton(onClick = onEdit) { Text("改写", style = MaterialTheme.typography.labelSmall) }
                     }
@@ -419,8 +422,8 @@ private fun MyRuleRow(
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(rule.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                         Spacer(Modifier.size(6.dp))
                         AssistChip(
@@ -466,7 +469,7 @@ private fun MyRuleRow(
                 TypeIcon(rule.type)
                 Switch(checked = rule.enabled && rule.badCount < 3, onCheckedChange = onToggle)
             }
-            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+            FlowRow(horizontalArrangement = Arrangement.End, verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 TextButton(onClick = onEdit) { Text("编辑", style = MaterialTheme.typography.labelSmall) }
                 TextButton(
                     onClick = onDelete,
@@ -528,7 +531,7 @@ private fun RegexEditDialog(
                 OutlinedTextField(
                     value = regex,
                     onValueChange = { regex = it },
-                    label = { Text("正则表达式") },
+                    labelText = "正则表达式",
                     singleLine = false,
                     maxLines = 4,
                     isError = check?.ok == false,
@@ -539,7 +542,7 @@ private fun RegexEditDialog(
                             check.ok.not() -> Text(check.error ?: "", style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error)
                             check.warning != null -> Text(check.warning, style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.tertiary)
+                                color = com.pickupcode.app.ui.theme.TypeCoupon)
                             else -> Text("看起来没问题", style = MaterialTheme.typography.labelSmall)
                         }
                     },
@@ -550,13 +553,13 @@ private fun RegexEditDialog(
                     OutlinedTextField(
                         value = label,
                         onValueChange = { label = it },
-                        label = { Text("名称（可选）") },
+                        labelText = "名称（可选）",
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(8.dp))
                     Text("类型", style = MaterialTheme.typography.labelMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("pickup_parcel" to "取件码", "pickup_food" to "取餐码", "coupon" to "券码").forEach { (v, t) ->
                             FilterChip(selected = type == v, onClick = { type = v }, label = { Text(t) })
                         }

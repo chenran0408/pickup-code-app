@@ -2,8 +2,8 @@ package com.pickupcode.app.ui.components
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.pickupcode.app.ui.miuix.Surface
+import com.pickupcode.app.ui.miuix.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -19,7 +19,7 @@ fun RecordStatusBadge(item: CodeHistory, now: Long = System.currentTimeMillis())
         else -> if (item.type == "coupon") "未使用" else "未取"
     }
     Surface(shape = MaterialTheme.shapes.small,
-        color = when { !item.isActive -> MaterialTheme.colorScheme.surfaceVariant
+        color = when { !item.isActive -> MaterialTheme.colorScheme.surfaceContainerHigh
             expired -> MaterialTheme.colorScheme.errorContainer
             else -> MaterialTheme.colorScheme.primaryContainer },
         contentColor = when { !item.isActive -> MaterialTheme.colorScheme.onSurfaceVariant

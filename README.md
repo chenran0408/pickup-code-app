@@ -4,6 +4,8 @@
 
 默认在本机识别和保存；离线中文 OCR 与二维码模型随安装包提供。AI、地图和快递查询均为可选功能，需要自行配置并开启。
 
+v1.3.0 统一采用 miuix 界面，包含首页、详情、设置、侧边栏与弹窗；统一卡片、按钮、输入框与状态标签，并分别适配浅色和深色的文字对比度；迁移范围见 [miuix 说明](docs/MIUIX_MIGRATION_2026-10.md)，详细配色说明见 [主题适配](docs/MIUIX_THEME_2026-10.md)。
+
 [![Build and Test](https://github.com/chenran0408/pickup-code-app/actions/workflows/ci.yml/badge.svg)](https://github.com/chenran0408/pickup-code-app/actions/workflows/ci.yml)
 [![Downloads](https://img.shields.io/github/downloads/chenran0408/pickup-code-app/total)](https://github.com/chenran0408/pickup-code-app/releases)
 [![Latest release](https://img.shields.io/github/v/release/chenran0408/pickup-code-app)](https://github.com/chenran0408/pickup-code-app/releases/latest)
@@ -15,16 +17,15 @@
 
 截图中的取件码与地址为合成测试内容。
 
-## v1.2.0 更新
+## v1.3.0 更新
 
-- 取件短信格式扩展、验证码排除修复；可选识别默认短信应用和微信的新通知。
-- 首页默认全部记录，已取历史保留并可恢复，支持已取/过期筛选与按站点批量已取。
-- 码值点一下复制；淘宝、菜鸟、拼多多入口固定在紧凑底栏，三个点击区以竖线分隔。
-- 统一深浅色主题、圆角与按钮，适配窄屏、大字体和键盘弹出布局。
-- 后台完成排序/分组及设置解密；页面离开前台后暂停订阅与计时刷新。
-- 仅提供 arm64，启用 R8、资源收缩和原生库压缩，保留离线识别模型。
+- 全部主要页面、侧边栏和弹窗统一 MIUIX 风格，分别适配深浅色；保留清晰的取件状态与底部三个平台快捷入口。
+- 主题支持跟随系统、浅色、深色；大字模式放大文字和常用点击区，适配通知搜索、键盘、规则标签和侧边栏滚动。
+- 按名称或包名搜索并勾选要监听的应用，显示实际通知连接状态，授权返回和断连时尝试恢复。
+- 图片分享显示识别进度与保存结果；分享当前未取码、粘贴文本或导入剪贴板，预览确认后保存。
+- 沿用独立正式签名，仅提供 arm64，启用 R8 和资源收缩，保留离线识别模型。
 
-变更与验证见 [更新说明](docs/UPDATE_1.2.0.md)，发布说明见 [Release](https://github.com/chenran0408/pickup-code-app/releases/latest)。
+发布范围与验证见 [更新说明](docs/RELEASE_NOTES.md)，下载见 [Release](https://github.com/chenran0408/pickup-code-app/releases/latest)。下方现有主页截图来自 v1.2.0，当前界面以新版为准。
 
 ## 下载与安装
 
@@ -56,6 +57,8 @@
 在首页点右上角分享图标可导出当前未取的取件码和取餐码。复制分享文本后，点“添加码”→“导入剪贴板”，先核对码值、类型和地址，再点“确认导入”；也可以将整段文本粘贴到码值框，自动显示导入预览。平时在同一个框里输入单个码即可，短位数取餐码会自动选取餐类型。重复导入会跳过相同的活跃记录，不改动已有记录；旧版无类型标记的文本可在预览中修正取件/取餐类型。
 
 通知访问权限与应用发送通知的权限是两回事。通知识别仅处理用户勾选的应用，不读取历史聊天或站内消息；没有新通知、正文被隐藏或只有汇总提示时无法识别。网络短信支持依赖通知正文，不能保证所有系统和聊天状态都能读到。真实微信新通知及最终短信接收仍需更多设备验证。
+
+通知来源页会显示实际连接状态。授权后返回应用、切换来源或服务断连时自动尝试恢复；连接失败可点击“重新连接”，并检查应用的自启动与后台限制。该恢复流程的设备验证进展见 [通知连接说明](docs/NOTIFICATION_CONNECTION_2026-10.md)。
 
 ## 功能
 

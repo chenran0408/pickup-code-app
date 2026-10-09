@@ -151,7 +151,6 @@ jobs:
           files: |
             app/build/outputs/apk/release/app-arm64-v8a-release.apk
             SHA256SUMS.txt
-            docs/performance/results-1.2.0.json
           body_path: docs/RELEASE_NOTES.md
           fail_on_unmatched_files: true
 

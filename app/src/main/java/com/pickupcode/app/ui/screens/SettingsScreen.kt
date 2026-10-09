@@ -22,11 +22,20 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import top.yukonga.miuix.kmp.utils.SmoothRoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.SegmentedButtonDefaults
+import com.pickupcode.app.ui.miuix.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -172,7 +181,7 @@ fun SettingsScreen(
         containerColor = MaterialTheme.colorScheme.background, // 与主页背景一致（跟随主题）
         topBar = {
             TopAppBar(
-                title = { Text(page.title) },
+                title = page.title,
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 },
@@ -214,10 +223,9 @@ private fun SettingsSectionCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        // 滚动列表里的阴影每帧重绘是卡顿源之一：降为 0，用浅描边保持分组视觉
+        // 与其他页面共用平滑圆角和表面层次，长列表不逐帧绘制阴影。
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+        shape = MaterialTheme.shapes.medium
     ) {
         Column(
             modifier = Modifier
@@ -273,11 +281,13 @@ private fun SettingsSwitch(
     @DrawableRes icon: Int? = null
 ) {
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().heightIn(min = 56.dp)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+            .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
             // 图标（Lucide 线性）替代原先写在标题里的 Emoji（用户 2026-09-18 要求）
             if (icon != null) {
                 com.pickupcode.app.ui.components.IconText(
@@ -297,12 +307,7 @@ private fun SettingsSwitch(
         Switch(
             checked = checked,
             onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = MaterialTheme.colorScheme.primary,
-                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+            modifier = Modifier.clearAndSetSemantics { }
         )
     }
 }
@@ -335,7 +340,7 @@ private fun SettingsSubHeader(text: String, @DrawableRes icon: Int? = null) {
 /** ① 识别设置：灵敏度 + 识别类型 */
 @Composable
 private fun RecognitionSettingsSection(sc: SettingsCtx) {
-    SettingsSectionCard(title = "识别设置", subtitle = "识别哪些码、匹配多严格") {
+    SettingsSectionCard(title = "识别范围", subtitle = "选择码的类型，调整识别灵敏度") {
         SettingsSubHeader("识别灵敏度")
         var confDraft by remember(sc.s.confidenceThreshold) { mutableStateOf(sc.s.confidenceThreshold) }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -344,12 +349,7 @@ private fun RecognitionSettingsSection(sc: SettingsCtx) {
                 onValueChange = { confDraft = it },
                 onValueChangeFinished = { sc.saveRun { AppPreferences.setConfidenceThreshold(sc.ctx, confDraft) } },
                 valueRange = 0.1f..0.8f,
-                modifier = Modifier.weight(1f),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                modifier = Modifier.weight(1f)
             )
             Text("${(confDraft * 100).roundToInt()}%", modifier = Modifier.padding(start = 8.dp))
         }
@@ -368,7 +368,7 @@ private fun RecognitionSettingsSection(sc: SettingsCtx) {
 /** ② 输入方式：无障碍 + 外部接收 + 短信 */
 @Composable
 private fun InputMethodsSection(sc: SettingsCtx) {
-    SettingsSectionCard(title = "输入方式", subtitle = "取件码从哪里来") {
+    SettingsSectionCard(title = "识别方式", subtitle = "选择短信、截图等识别入口") {
         SettingsSubHeader("无障碍服务")
         OutlinedButton(
             onClick = { sc.saveRun { AppPreferences.setHideAccessibilityCard(sc.ctx, false) } },
@@ -393,7 +393,7 @@ private fun InputMethodsSection(sc: SettingsCtx) {
             "快递取件码到期提醒",
             sub = if (sc.s.enableExpiryRemind) "按文字时限或免费保管期限提醒；未注明时默认 3 天" else "已关闭",
             checked = sc.s.enableExpiryRemind,
-            onChange = { v -> sc.save { AppPreferences.setEnableExpiryRemind(sc.ctx, v) } }
+            onChange = sc.save { AppPreferences.setEnableExpiryRemind(sc.ctx, it) }
         )
     }
 }
@@ -421,25 +421,24 @@ private fun SmsNotificationSettings(sc: SettingsCtx) {
     }
     fun openAccess() { com.pickupcode.app.service.SmsNotificationListener.openAccess(sc.ctx) }
     var selectingApps by rememberSaveable { mutableStateOf(false) }
+    val displayDensity = androidx.compose.ui.platform.LocalDensity.current
     TextButton(onClick = { selectingApps = true }) {
         Text("选择通知来源（${sc.s.notificationApps.size}）")
     }
-    Text(when {
-        sc.s.notificationApps.isEmpty() -> "尚未选择应用，通知识别已关闭"
-        !granted -> "已选 ${sc.s.notificationApps.size} 个应用，等待通知访问授权"
-        !listenerState.connected -> "已授权，等待监听连接"
-        else -> "监听正常；仅识别已选应用的新通知，不读取历史消息"
-    }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(com.pickupcode.app.service.NotificationRecognitionStatus.description(sc.s.notificationApps.size, granted, listenerState),
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     if (granted && !listenerState.connected && sc.s.notificationApps.isNotEmpty()) TextButton(onClick = {
-        android.service.notification.NotificationListenerService.requestRebind(android.content.ComponentName(sc.ctx, com.pickupcode.app.service.SmsNotificationListener::class.java))
-    }) { Text("重新连接监听") }
+        com.pickupcode.app.service.NotificationListenerConnection.recover(sc.ctx)
+    }, enabled = listenerState.connection != com.pickupcode.app.service.NotificationRecognitionStatus.Connection.CONNECTING) { Text("重新连接") }
     if (sc.s.notificationApps.isNotEmpty()) TextButton(onClick = { openAccess() }) {
         Text(if (granted) "管理通知访问权限" else "开启通知访问权限")
     }
     if (selectingApps) androidx.compose.ui.window.Dialog(
         onDismissRequest = { selectingApps = false },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-        NotificationAppsScreen(onBack = { selectingApps = false }, onRequestAccess = { openAccess() })
+        CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides displayDensity) {
+            NotificationAppsScreen(onBack = { selectingApps = false }, onRequestAccess = { openAccess() })
+        }
     }
 }
 
@@ -706,7 +705,7 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
             Text(
                 msg,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (probeOk) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
+                color = if (probeOk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
             )
         }
     }
@@ -715,8 +714,22 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
 @Composable
 private fun AppearanceSection(sc: SettingsCtx) {
     SettingsSectionCard(title = "外观") {
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色").forEachIndexed { i, (v, l) ->
+        SettingsSwitch("大字模式", sub = "文字更大，按钮更好点",
+            checked = sc.s.largeText, onChange = sc.save { AppPreferences.setLargeText(sc.ctx, it) })
+        val themes = listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色")
+        if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                themes.forEach { (value, label) ->
+                    FilterChip(
+                        selected = sc.s.darkMode == value,
+                        onClick = { sc.saveRun { AppPreferences.setDarkMode(sc.ctx, value) } },
+                        label = { Text(label) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        } else SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            themes.forEachIndexed { i, (v, l) ->
                 SegmentedButton(
                     selected = sc.s.darkMode == v,
                     onClick = { sc.saveRun { AppPreferences.setDarkMode(sc.ctx, v) } },
@@ -922,7 +935,7 @@ private fun DebouncedKeyField(
         },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
-        label = { Text(label) },
+        labelText = label,
         visualTransformation = if (isPassword && !visible) PasswordVisualTransformation() else VisualTransformation.None,
         trailingIcon = if (isPassword) {
             {

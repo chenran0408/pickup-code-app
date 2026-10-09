@@ -8,7 +8,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SnackbarHostState
+import com.pickupcode.app.ui.miuix.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,7 +53,7 @@ fun SavedAddressScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("常用取件地址") },
+                title = "常用取件地址",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
@@ -276,14 +279,14 @@ private fun SavedAddressEditorDialog(
                 OutlinedTextField(
                     value = fullName,
                     onValueChange = { fullName = it },
-                    label = { Text("完整名称（识别到后就用它）") },
+                    labelText = "完整名称（识别到后就用它）",
                     placeholder = { Text("如：长兴路北段菜鸟驿站") },
                     singleLine = true
                 )
                 OutlinedTextField(
                     value = keywords,
                     onValueChange = { keywords = it },
-                    label = { Text("关键词，逗号分隔（命中任一即触发）") },
+                    labelText = "关键词，逗号分隔（命中任一即触发）",
                     placeholder = { Text("如：北段驿站,长兴路") },
                     singleLine = true
                 )

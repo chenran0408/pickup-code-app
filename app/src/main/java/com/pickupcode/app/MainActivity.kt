@@ -15,7 +15,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
+import com.pickupcode.app.ui.miuix.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -107,7 +107,7 @@ class MainActivity : ComponentActivity() {
             PickupCodeTheme {
                 androidx.compose.material3.ModalNavigationDrawer(drawerState = drawerState,
                     gesturesEnabled = screen == Screen.Home, drawerContent = {
-                    com.pickupcode.app.ui.components.AppDrawerContent { key ->
+                    com.pickupcode.app.ui.components.AppDrawerContent(onClose = { uiScope.launch { drawerState.close() } }) { key ->
                         uiScope.launch {
                             drawerState.close()
                             settingsChildBack = Screen.Home.name
@@ -250,6 +250,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refreshAccessibilityStates()
+        com.pickupcode.app.service.NotificationListenerConnection.recover(this)
     }
 
     /** 刷新无障碍两种状态：设置里是否开启（字符串）+ 本进程服务是否真实连接（connected 标志）。 */

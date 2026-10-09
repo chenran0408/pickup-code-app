@@ -6,7 +6,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import com.pickupcode.app.ui.miuix.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -55,12 +56,12 @@ private fun FeedbackDialog(onDismiss: () -> Unit) {
         Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (sanitized == null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("漏识别", "识别错误").forEach { value -> FilterChip(selected = kind == value, onClick = { kind = value }, label = { Text(value) }) } }
-                OutlinedTextField(value = source, onValueChange = { source = it.take(50) }, label = { Text("入口：短信、微信、截图或分享") })
-                OutlinedTextField(value = original, onValueChange = { original = it.take(20000) }, label = { Text("粘贴有问题的消息") }, maxLines = 5)
+                OutlinedTextField(value = source, onValueChange = { source = it.take(50) }, labelText = "入口：短信、微信、截图或分享")
+                OutlinedTextField(value = original, onValueChange = { original = it.take(20000) }, labelText = "粘贴有问题的消息", maxLines = 5)
             } else {
                 Text("数字已替换，请继续修改姓名和地址，保持取件码的位数与分隔符。", style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(value = sanitized.orEmpty(), onValueChange = { sanitized = it.take(20000); checked = false }, label = { Text("可编辑的脱敏样例") }, maxLines = 5)
-                OutlinedTextField(value = expected, onValueChange = { expected = it.take(2000); checked = false }, label = { Text("期望识别结果（使用假码和假地址）") }, maxLines = 2)
+                OutlinedTextField(value = sanitized.orEmpty(), onValueChange = { sanitized = it.take(20000); checked = false }, labelText = "可编辑的脱敏样例", maxLines = 5)
+                OutlinedTextField(value = expected, onValueChange = { expected = it.take(2000); checked = false }, labelText = "期望识别结果（使用假码和假地址）", maxLines = 2)
                 Row { Checkbox(checked = checked, onCheckedChange = { checked = it }); Text("已检查样例和期望结果，没有真实个人信息") }
             }
             outcome?.let { Text(it, style = MaterialTheme.typography.bodySmall) }

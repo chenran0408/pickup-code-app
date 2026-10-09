@@ -1,26 +1,43 @@
 package com.pickupcode.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.runtime.Composable
+import androidx.compose.material3.MaterialTheme
+import top.yukonga.miuix.kmp.theme.Colors
+import top.yukonga.miuix.kmp.theme.darkColorScheme
+import top.yukonga.miuix.kmp.theme.lightColorScheme
 
-// Sleek 主题色（参考 bergside/awesome-design-skills/skills/sleek）
-// 白底 + 亮蓝强调 + 紫辅色 + 细线条，利落现代
-val Primary = Color(0xFF3B82F6)           // Sleek 主蓝
-val OnPrimary = Color(0xFFFFFFFF)
-val PrimaryContainer = Color(0xFFEFF6FF)  // 浅蓝容器
-val OnPrimaryContainer = Color(0xFF2563EB) // 深蓝文字
-val Secondary = Color(0xFF8B5CF6)         // Sleek 辅紫
-val OnSecondary = Color(0xFFFFFFFF)
-val SecondaryContainer = Color(0xFFF3F0FF)
-val OnSecondaryContainer = Color(0xFF6D28D9)
-val Surface = Color(0xFFFFFFFF)           // 纯白表面
-val OnSurface = Color(0xFF111827)         // Sleek 深文字
-val SurfaceVariant = Color(0xFFF9FAFB)    // 极浅灰卡片
-val OnSurfaceVariant = Color(0xFF6B7280)  // 次级灰文字
-val Error = Color(0xFFDC2626)             // Sleek 危险红
-val OnError = Color(0xFFFFFFFF)
-val Background = Color(0xFFF3F4F6)        // 浅灰背景（让白色卡片浮起来）
+// 保留 miuix 的蓝色、层次和圆角语言，摘要、输入提示及柔和强调文字按两种背景配对。
+internal data class ReadableColors(val surface: Color, val background: Color, val body: Color,
+    val summary: Color, val inputLabel: Color, val inputBackground: Color, val emphasis: Color, val emphasisBackground: Color)
+
+internal fun pickupReadableColors(dark: Boolean) = if (dark)
+    ReadableColors(Color(0xFF242424), Color.Black, Color(0xFFF2F2F2), Color(0xFFB3B3B3),
+        Color(0xFFBDBDBD), Color(0xFF434343), Color(0xFF9CC3FF), Color(0xFF2B3B54))
+else ReadableColors(Color.White, Color(0xFFF7F7F7), Color(0xFF1A1A1A), Color(0xFF666666),
+    Color(0xFF666666), Color(0xFFF0F0F0), Color(0xFF235FB5), Color(0xFFEAF2FF))
+
+internal fun pickupMiuixColors(dark: Boolean): Colors {
+    val readable = pickupReadableColors(dark)
+    return (if (dark) darkColorScheme() else lightColorScheme()).copy(
+        surface = readable.surface, background = readable.background, onSurface = readable.body,
+        onSurfaceVariantSummary = readable.summary, onSecondaryContainer = readable.inputLabel,
+        secondaryContainer = readable.inputBackground,
+        onTertiaryContainer = readable.emphasis, tertiaryContainer = readable.emphasisBackground)
+}
+
+internal data class SemanticColors(val error: Color, val onError: Color, val errorContainer: Color, val onErrorContainer: Color)
+internal fun pickupSemanticColors(dark: Boolean) = if (dark)
+    SemanticColors(Color(0xFFF2AAA5), Color(0xFF4B201E), Color(0xFF472C2B), Color(0xFFFFC5C1))
+else SemanticColors(Color(0xFFB83C35), Color.White, Color(0xFFFBEAE9), Color(0xFF96342F))
 
 // 类型识别色（左侧竖条 + badge）
-val TypeFood = Color(0xFF3B82F6)          // 取餐蓝
-val TypeParcel = Color(0xFF8B5CF6)        // 取件紫
-val TypeCoupon = Color(0xFFF59E0B)        // 券码黄
+val TypeFood: Color
+    @Composable get() = MaterialTheme.colorScheme.primary
+val TypeParcel: Color
+    @Composable get() = if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
+        Color(0xFFC0A8F0) else Color(0xFF7553B8)
+val TypeCoupon: Color
+    @Composable get() = if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
+        Color(0xFFE9BE70) else Color(0xFF986000)
