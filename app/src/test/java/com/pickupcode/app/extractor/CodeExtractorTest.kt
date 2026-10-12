@@ -394,4 +394,30 @@ class CodeExtractorTest {
         val r = CodeExtractor.extract(listOf(line("瑞幸咖啡"), line("取餐码 A 12")))
         assertTrue(r.none { it.code.any { c -> c == ' ' } }, "码值不得含空格: ${r.map { it.code }}")
     }
+    @Test
+    @DisplayName("站点短信：凭字母数字分区码来取，保留完整码值")
+    fun parcelZoneCode_beforeLaiqu() {
+        val result = CodeExtractor.extract(listOf(line(
+            "【驿小哥】您的顺丰包裹已到青禾市青禾区科技大学七公寓顺丰站点，请18:00前凭A3-52786来取，谢谢。"
+        )))
+        assertEquals(listOf("A3-52786"), result.map { it.code })
+        assertEquals(CodeExtractor.CodeType.pickup_parcel, result.single().type)
+    }
+
+    @Test
+    @DisplayName("来取句式兼容小写和全角横杠，不截取数字后缀")
+    fun parcelZoneCode_normalizedLaiqu() {
+        val result = CodeExtractor.extract(listOf(line("【驿小哥】顺丰包裹已到青禾站，请凭a3－52786来取。")))
+        assertEquals(listOf("a3-52786"), result.map { it.code })
+        assertEquals(CodeExtractor.CodeType.pickup_parcel, result.single().type)
+    }
+
+    @Test
+    @DisplayName("类似分区码的设备型号和登录验证码不入库")
+    fun parcelZoneCode_rejectNoise() {
+        for (text in listOf(
+            "设备型号A3-52786，维修预约时间18:00。",
+            "【腾讯科技】你正在登录验证，验证码184538。提供给他人会导致账号被盗。"
+        )) assertTrue(CodeExtractor.extract(listOf(line(text))).isEmpty(), text)
+    }
 }
