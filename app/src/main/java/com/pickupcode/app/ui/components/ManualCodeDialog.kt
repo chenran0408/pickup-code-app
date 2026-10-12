@@ -15,7 +15,11 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import com.pickupcode.app.extractor.CodeValidator
+import com.pickupcode.app.extractor.CodeExtractor
+import com.pickupcode.app.ui.screens.home.ManualCodeInput
 import com.pickupcode.app.ui.screens.home.PendingShareText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** 单码与分享文本共用一个输入框；剪贴板有分享文本时直接给出导入入口。 */
 @Composable
@@ -31,16 +35,25 @@ fun ManualCodeDialog(
     var previewingClipboard by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
     val clipboardText = remember { clipboard.getText()?.text?.toString().orEmpty() }
-    val clipboardParsed = remember(clipboardText) { PendingShareText.parse(clipboardText) }
-    val isImportText = input.trimStart().startsWith("当前未取码（")
-    val parsed = remember(input) { if (isImportText) PendingShareText.parse(input) else PendingShareText.ParseResult() }
+    val clipboardParsed by produceState(PendingShareText.ParseResult(), clipboardText) {
+        value = withContext(Dispatchers.Default) { ManualCodeInput.parse(clipboardText) }
+    }
+    val isImportText = ManualCodeInput.isImportText(input)
+    val parsedInput by produceState("" to PendingShareText.ParseResult(), input, isImportText) {
+        value = input to if (isImportText) withContext(Dispatchers.Default) {
+            ManualCodeInput.parse(input)
+        } else PendingShareText.ParseResult()
+    }
+    // 输入变化后旧预览立即失效，不能在后台解析完成前误导入上一段文本。
+    val parsed = if (parsedInput.first == input) parsedInput.second else PendingShareText.ParseResult()
     val typeOverrides = remember(input) { mutableStateMapOf<Int, String>() }
     val entries = parsed.entries.mapIndexed { index, entry -> entry.copy(type = typeOverrides[index] ?: entry.type) }
     val invalidEntry = entries.indexOfFirst { !CodeValidator.isValidManualCode(it.code, it.type) }
-    val autoFood = input.trim().let { it.length in 2..3 && it.all(Char::isDigit) &&
+    val singleCode = CodeExtractor.normalizeText(input.trim())
+    val autoFood = singleCode.let { it.length in 2..3 && it.all(Char::isDigit) &&
         CodeValidator.isValidManualCode(it, "pickup_food") }
     val codeType = selectedType ?: if (autoFood) "pickup_food" else "pickup_parcel"
-    val validSingle = !isImportText && CodeValidator.isValidManualCode(input.trim(), codeType)
+    val validSingle = !isImportText && CodeValidator.isValidManualCode(singleCode, codeType)
     val focus = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -93,8 +106,8 @@ fun ManualCodeDialog(
                     OutlinedTextField(
                         value = input,
                         onValueChange = { input = it.take(30_001) },
-                        labelText = if (isImportText) "分享文本" else "取件码 / 取餐码",
-                        placeholder = { Text("输入码值，或粘贴分享导出的整段文本") },
+                        labelText = if (isImportText) "通知或分享文本" else "取件码 / 取餐码",
+                        placeholder = { Text("输入码值，或粘贴整条取件通知") },
                         singleLine = !isImportText,
                         maxLines = if (isImportText) 7 else 1,
                         modifier = Modifier.fillMaxWidth().focusRequester(focus)
@@ -105,7 +118,7 @@ fun ManualCodeDialog(
                     if (parsed.error != null) Text(parsed.error,
                         color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     else {
-                        if (!previewingClipboard) Text("识别到 ${entries.size} 条，导入前可点类型修改",
+                        if (!previewingClipboard) Text(if (entries.isEmpty()) "正在识别…" else "识别到 ${entries.size} 条，导入前可点类型修改",
                             style = MaterialTheme.typography.titleSmall)
                         if (parsed.legacyCount > 0) Text("旧版文本有 ${parsed.legacyCount} 条缺少类型，请核对取件/取餐。",
                             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -151,7 +164,7 @@ fun ManualCodeDialog(
                 TextButton(onClick = {
                     if (validSingle) {
                         val label = source.ifBlank { if (codeType == "pickup_food") "手动录入·取餐" else "手动录入·取件" }
-                        onConfirm(input.trim(), codeType, label)
+                        onConfirm(singleCode, codeType, label)
                         onDismiss()
                     }
                 }, enabled = validSingle) { Text(if (input.isNotBlank() && !validSingle) "格式不符" else "添加") }

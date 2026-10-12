@@ -31,25 +31,25 @@ object CodeExtractor {
     // 美团券页把「¥10.8 ¥16」OCR 成「H 10.8 *6」，旧的 \s* 写法把 "H 10"（码值里还带空格）当取餐码入库。
     private val LETTER_NUMBER_FOOD = Regex("(?<![\\dA-Za-z])([A-Z]-?\\d{2,4})(?![\\dA-Za-z])", RegexOption.IGNORE_CASE)
     private val PURE_NUMBER_FOOD = Regex("(?<![\\dA-Za-z-])(\\d{2,5})(?![\\dA-Za-z])")
-    private val PREFIXED_CODE = Regex("(取[餐件货单]码|取餐号|取单号|排号|提取码)[:：]?\\s*(?:为|是)?\\s*([A-Za-z0-9\\-]{2,12})")
+    private val PREFIXED_CODE = Regex("(取[餐件货单]码|取件密码|提货码|取餐号|取单号|排号|提取码)[:：]?\\s*(?:为|是)?\\s*([A-Za-z0-9_\\-]{2,12})")
     // 券号（团购券/到店券的数字券码）：OCR 常按字符间隙拆出空格（券号1246 1046 4170 008），
     // 贪婪捕获整段后去空格/间隔点还原完整码；PREFIXED/PING 不再管券号（12 位上限且类型错）。
     private val COUPON_NUMBER = Regex("券号[:：]?\\s*([\\d][\\d\\s·.]{3,28}[\\d])")
     // 菜鸟/驿站类通知标准句式：凭3-7-4162到...取（件）；容忍 OCR 在码值与方位词间插入空格
-    private val PING_CODE = Regex("(?:凭|好评码|提取码)[:：]?\\s*([A-Za-z0-9\\-]{2,12}?)\\s*(?=(?:到|至|去|领|取|在|格|号柜|菜鸟|驿站|快递柜))", RegexOption.IGNORE_CASE)
+    private val PING_CODE = Regex("(?:凭|好评码|提取码)[:：]?\\s*([A-Za-z0-9_\\-]{2,12}?)\\s*(?=(?:来取|前往|扫码|自助取件|到|至|去|领|取|在|格|号柜|菜鸟|驿站|快递柜))", RegexOption.IGNORE_CASE)
 
     // 跨行前缀：上一行是取件码/凭条等词 + 下一行开头是码（后接地址/通知等）；去掉行尾$锚点，
     // 否则"412908 到长兴路..."这类码后跟真实地址的会被漏抓（需保留开头强锚定 + 后不能紧邻数字/破折号）
-    private val NEXT_LINE_CODE = Regex("^\\s*([A-Za-z0-9\\-]{2,12})\\s*(?![-\\d])")
+    private val NEXT_LINE_CODE = Regex("^\\s*([A-Za-z0-9_\\-]{2,12})\\s*(?![-_\\d])")
     private val CODE_KEYWORD_NEAR = Regex("(取[件餐货]码|取餐号|驿站|快递柜|自提柜|取件点)")
     /**
      * 「标签在上一行、码值在下一行」用的**整行标签**（`^..$` 锚定，标签行自身不含码值才算）。
      * 真机案例（2026-09-16 真实语料）：美团外卖配送页「取餐号」(y=803) 正下方 y=843 是唯一真实码 QTP07，
      * 但 OCR 行数组里中间插进了地图标签行，"按数组下标的下一行"规则完全取不到 → 见 [nearestWholeLineCodeBelow]。
      */
-    private val LABEL_FOR_CODE = Regex("^(取[餐件货单][码号]|取餐号|取单号|提取码|凭条号)$")
+    private val LABEL_FOR_CODE = Regex("^(取[餐件货单][码号]|取件密码|提货码|取餐号|取单号|提取码|凭条号)$")
     /** 整行就是一个码值（跨行标签规则的取值约束，避免从句子里抠片段）。 */
-    private val WHOLE_LINE_CODE = Regex("^([A-Za-z0-9][A-Za-z0-9\\-]{1,11})$")
+    private val WHOLE_LINE_CODE = Regex("^([A-Za-z0-9][A-Za-z0-9_\\-]{1,11})$")
     private const val LABEL_GAP_LINES = 3
     private const val LABEL_GAP_MIN_PX = 48
     /**
@@ -133,7 +133,8 @@ object CodeExtractor {
         for (ch in text) {
             when (ch) {
                 '\t', '\n', '\r' -> sb.append(' ')
-                '_', '~' -> sb.append('-')
+                '~' -> sb.append('-')
+                in 'Ａ'..'Ｚ', in 'ａ'..'ｚ' -> sb.append((ch.code - 0xFEE0).toChar())
                 '（' -> sb.append('(')       // 全角左括号 （
                 '）' -> sb.append(')')        // 全角右括号 ）
                 '，' -> sb.append(',')         // 全角逗号 ，
@@ -267,13 +268,13 @@ object CodeExtractor {
 
     /** 走独立代码块的特殊模式：停用 = 跳过对应代码块；不支持改写正则（逻辑依赖捕获组）。 */
     private val BUILTIN_SPECIAL_RULES: List<BuiltinRule> = listOf(
-        BuiltinRule("PREFIXED_CODE", "前缀取码（含八位柜机码 7922-0881）", PREFIXED_CODE,
+        BuiltinRule("PREFIXED_CODE", "前缀取码（提货码/取件密码/八位柜机码）", PREFIXED_CODE,
             CodeType.pickup_parcel, SCORE_PREFIXED, strong = true, editable = false),
         BuiltinRule("NEXT_LINE_CODE", "跨行前缀取码（标签在上一行）", NEXT_LINE_CODE,
             CodeType.pickup_parcel, SCORE_PREFIXED, strong = true, editable = false),
         BuiltinRule("LABEL_FOR_CODE", "标签行正下方取码", LABEL_FOR_CODE,
             CodeType.pickup_parcel, SCORE_PREFIXED, strong = true, editable = false),
-        BuiltinRule("PING_CODE", "凭码句式（凭码到/至站点取件）", PING_CODE,
+        BuiltinRule("PING_CODE", "凭码取件（到站点/来取/扫码）", PING_CODE,
             CodeType.pickup_parcel, SCORE_PREFIXED - PING_BASE_PENALTY, strong = true, editable = false),
         BuiltinRule("COUPON_NUMBER", "券号（券号: 长数字）", COUPON_NUMBER,
             CodeType.coupon, SCORE_PREFIXED, strong = true, editable = false)
@@ -409,7 +410,7 @@ object CodeExtractor {
             }
         }
 
-        val prefixKw = listOf("取餐码", "取餐号", "取单码", "取单号", "取件码", "取货码", "排号", "提取码")
+        val prefixKw = listOf("取餐码", "取餐号", "取单码", "取单号", "取件码", "取货码", "取件密码", "提货码", "排号", "提取码")
         for (i in lines.indices) {
             if (prefixKw.any { lines[i].text.contains(it, ignoreCase = true) } && i + 1 < lines.size) {
                 val nextLine = lines[i + 1].text.trim()

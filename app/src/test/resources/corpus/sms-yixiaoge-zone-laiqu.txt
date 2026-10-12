@@ -1,0 +1,8 @@
+# id: sms-yixiaoge-zone-laiqu
+# source: sms
+# note: 站点短信凭字母数字分区码来取；码值、地点与时间均为同形态合成数据。
+L - - - - - 【驿小哥】您的顺丰包裹已到青禾市青禾区科技大学七公寓顺丰站点，请18:00前凭A3-52786来取，谢谢。
+E code pickup_parcel A3-52786
+E forbid 52786
+E forbid 18
+E forbid 00

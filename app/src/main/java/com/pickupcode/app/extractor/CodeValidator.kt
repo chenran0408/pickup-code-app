@@ -80,7 +80,7 @@ object CodeValidator {
      * 拆出供强前缀上下文路径复用（取餐码 123 这类短码跳过格式白名单但必须过内容检查）。
      */
     internal fun isContentNoise(code: String): Boolean {
-        val stripped = code.trim().replace("-", "").replace(" ", "")
+        val stripped = code.trim().replace("-", "").replace("_", "").replace(" ", "")
         val len = stripped.length
         if (len < 2 || len > 20) return true
         return isContentNoiseCore(stripped)
@@ -121,6 +121,10 @@ object CodeValidator {
 
     // 合法取件/取餐码格式白名单（与上方解析正则一一对应，去锚点/去分组后用于全串匹配）
     private val VALID_CODE_FORMATS = listOf(
+        // 短信平台支持下划线分段；自动识别只经明确码前缀/凭码句式召回，保留原分隔符。
+        Regex("\\d{1,3}_\\d{1,2}_\\d{3,6}"),
+        Regex("\\d{1,3}_\\d{3,6}"),
+        Regex("\\d{4}_\\d{4}"),
         Regex("\\d{4}-\\d{4}"), // 柜机八位取件码，仅由明确码前缀等强上下文召回
         Regex("[A-Za-z]?\\d{1,2}-\\d{1,2}-\\d{1,2}-\\d{2,4}"), // FOUR_SEGMENT
         Regex("\\d{1,3}-\\d{1,2}-\\d{3,6}"),                       // THREE_SEGMENT
