@@ -6,7 +6,7 @@
 
 Miuix 0.9.4 上游以 Compose Multiplatform 1.12.0、Kotlin 2.4.20、AGP 9.4.1 和 Gradle 9.7.1 发布。Compose 1.12 官方要求 compileSdk 37，因此仅提升 compileSdk；minSdk 26 与 targetSdk 35 保持不变。AGP 9.x 暂通过 `android.builtInKotlin=false` 与 `android.newDsl=false` 保留当前 Kotlin Gradle 插件、旧 DSL 与 KSP 配置，避免把这次 UI 候选扩大为构建 DSL 迁移。该 opt-out 是临时技术债，后续迁移内置 Kotlin 时应移除两个属性并转换 `kotlinOptions`。版本和正式模块见 [Miuix v0.9.4 release notes](https://github.com/compose-miuix-ui/miuix/releases/tag/v0.9.4) 与[官方模块说明](https://compose-miuix-ui.github.io/miuix/guide/getting-started)。
 
-Miuix 0.9.4 Android AAR 元数据要求 `minCompileSdk=37`；Compose 1.12 也要求 compileSdk 37。当前 API 37 SDK 位于 Android Preview channel，CI 通过 `sdkmanager --channel=3` 安装；稳定 channel 暂无该平台。minSdk 26 与 targetSdk 35 保持不变。
+Miuix 0.9.4 Android AAR 元数据要求 `minCompileSdk=37`；Compose 1.12 也要求 compileSdk 37。当前 API 37 Preview package id 为 `platforms;android-37.0`，位于 Android Preview channel；CI 通过 `sdkmanager --channel=3` 安装。minSdk 26 与 targetSdk 35 保持不变。
 
 KSP 从 2.3.10 更新到当前稳定版 2.3.12，以保持 Room 代码生成器与升级后的 Kotlin / AGP 工具链兼容；Room 配置和数据库代码未改。
 

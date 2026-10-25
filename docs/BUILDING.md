@@ -127,7 +127,7 @@ settingsEvaluated { settings ->
 
 ```bash
 sdkmanager "build-tools;36.0.0"
-sdkmanager --channel=3 --install "platforms;android-37"
+sdkmanager --channel=3 --install "platforms;android-37.0"
 ```
 
 ## 可选功能配置
