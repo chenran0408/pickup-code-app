@@ -35,7 +35,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-37 build-tools;36.0.0'
+          packages: 'build-tools;36.0.0'
+
+      - name: Install Android preview platform
+        run: sdkmanager --channel=3 --install "platforms;android-37"
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
