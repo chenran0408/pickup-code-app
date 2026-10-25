@@ -1,5 +1,3 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
 package com.pickupcode.app.ui.miuix
 
 import androidx.compose.foundation.BorderStroke
@@ -32,7 +30,7 @@ import androidx.compose.ui.state.ToggleableState
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 // 原有页面保留色彩角色与回调签名；可见控件由 miuix 绘制，避免逐页混用两套视觉样式。
-private val LocalContent = LocalContentColor
+private val LocalContent = top.yukonga.miuix.kmp.theme.LocalContentColor
 
 @Composable
 private fun controlHeight(): Dp = if (LocalDensity.current.fontScale >= 1.3f) 56.dp else 48.dp
@@ -42,7 +40,7 @@ fun Text(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspe
     fontSize: TextUnit = TextUnit.Unspecified, fontWeight: FontWeight? = null, fontFamily: FontFamily? = null,
     textAlign: TextAlign? = null, lineHeight: TextUnit = TextUnit.Unspecified, textDecoration: TextDecoration? = null,
     overflow: TextOverflow = TextOverflow.Clip, softWrap: Boolean = true, maxLines: Int = Int.MAX_VALUE,
-    minLines: Int = 1, style: TextStyle = LocalTextStyle.current) {
+    minLines: Int = 1, style: TextStyle = MiuixTheme.textStyles.main) {
     top.yukonga.miuix.kmp.basic.Text(text, modifier,
         color = if (color != Color.Unspecified) color else if (LocalContent.current != Color.Unspecified) LocalContent.current else MaterialTheme.colorScheme.onSurface,
         fontSize = fontSize, fontWeight = fontWeight, fontFamily = fontFamily, textAlign = textAlign,
@@ -52,12 +50,12 @@ fun Text(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspe
 @Composable
 fun Icon(imageVector: ImageVector, contentDescription: String?, modifier: Modifier = Modifier,
     tint: Color = Color.Unspecified) = top.yukonga.miuix.kmp.basic.Icon(imageVector, contentDescription, modifier,
-        if (tint != Color.Unspecified) tint else if (LocalContent.current != Color.Unspecified) LocalContent.current else MaterialTheme.colorScheme.onSurface)
+        if (tint != Color.Unspecified) tint else if (LocalContent.current != Color.Unspecified) LocalContent.current else MiuixTheme.colorScheme.onSurface)
 
 @Composable
 fun Icon(painter: Painter, contentDescription: String?, modifier: Modifier = Modifier,
     tint: Color = Color.Unspecified) = top.yukonga.miuix.kmp.basic.Icon(painter, contentDescription, modifier,
-        if (tint != Color.Unspecified) tint else if (LocalContent.current != Color.Unspecified) LocalContent.current else MaterialTheme.colorScheme.onSurface)
+        if (tint != Color.Unspecified) tint else if (LocalContent.current != Color.Unspecified) LocalContent.current else MiuixTheme.colorScheme.onSurface)
 
 @Composable
 fun IconButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable () -> Unit) {
@@ -240,7 +238,7 @@ fun OutlinedTextField(value: String, onValueChange: (String) -> Unit, modifier: 
 
 @Composable
 fun TopAppBar(title: String, modifier: Modifier = Modifier, navigationIcon: @Composable () -> Unit = {},
-    actions: @Composable RowScope.() -> Unit = {}, colors: TopAppBarColors = TopAppBarDefaults.topAppBarColors()) {
+    actions: @Composable RowScope.() -> Unit = {}) {
     top.yukonga.miuix.kmp.basic.SmallTopAppBar(title, modifier.statusBarsPadding(),
         navigationIcon = navigationIcon, actions = actions)
 }

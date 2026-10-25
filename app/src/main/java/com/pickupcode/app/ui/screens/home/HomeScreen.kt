@@ -36,7 +36,6 @@ import top.yukonga.miuix.kmp.basic.SnackbarResult
 import com.pickupcode.app.ui.miuix.Text
 import com.pickupcode.app.ui.miuix.TextButton
 import com.pickupcode.app.ui.miuix.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -226,9 +225,6 @@ fun HomeScreen(
                     }
 
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
             )
         },
         bottomBar = bottomNavigationBar,

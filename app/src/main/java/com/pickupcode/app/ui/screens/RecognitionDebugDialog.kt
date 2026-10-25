@@ -5,13 +5,12 @@ import com.pickupcode.app.R
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,9 +22,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
 import com.pickupcode.app.extractor.RecognitionDebugStore
+import top.yukonga.miuix.kmp.window.WindowDialog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -38,11 +37,16 @@ import java.util.Locale
 fun RecognitionDebugDialog(onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     val snap = RecognitionDebugStore.latest()
-    Dialog(onDismissRequest = onDismiss) {
+    WindowDialog(
+        title = "识别调试",
+        show = true,
+        modifier = Modifier.fillMaxWidth(),
+        onDismissRequest = onDismiss,
+    ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface)
+                .fillMaxWidth()
+                .heightIn(max = 720.dp)
                 .padding(16.dp)
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -69,7 +73,7 @@ fun RecognitionDebugDialog(onDismiss: () -> Unit) {
             Text("来源=${snap.source}  时间=${fmt.format(Date(snap.timeMs))}  OCR行=${snap.lines.size} 候选=${snap.candidates.size} 结果=${snap.finalResults.size}",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            LazyColumn(Modifier.padding(top = 8.dp)) {
+            LazyColumn(Modifier.weight(1f).padding(top = 8.dp)) {
                 item {
                     Text("── 地址结果 ──", style = MaterialTheme.typography.titleSmall)
                     val a = snap.address

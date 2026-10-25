@@ -8,6 +8,8 @@ Miuix 0.9.4 上游以 Compose Multiplatform 1.12.0、Kotlin 2.4.20、AGP 9.4.1 �
 
 Miuix 0.9.4 Android AAR 元数据要求 `minCompileSdk=37`；Compose 1.12 也要求 compileSdk 37。当前 API 37 Preview package id 为 `platforms;android-37.0`，位于 Android Preview channel；CI 通过 `sdkmanager --channel=3` 安装。minSdk 26 与 targetSdk 35 保持不变。
 
+`activity-compose` 固定使用 `1.13.0`：Activity 1.9.3 未提供 Miuix `OverlayDialog` 所需的 `NavigationEventDispatcherOwner`，真机打开手动录入弹窗会崩溃。升级后已在真机确认对话框、输入框、IME、取消和手动保存正常；后续候选不得回退此依赖。
+
 KSP 从 2.3.10 更新到当前稳定版 2.3.12。CI 首次执行 KSP 时，Room 2.6.1 报 `unexpected jvm signature V`；这是 KSP2 处理 Room suspend Unit 方法的已知问题，Room 2.7+ 已修复，因此 runtime、ktx、compiler 统一升级到稳定版 2.8.5。DAO、Repository、schema JSON 和迁移逻辑均未修改；CI 会运行现有 SQLite migration check 与单元测试。
 
 ## 界面范围
@@ -15,6 +17,7 @@ KSP 从 2.3.10 更新到当前稳定版 2.3.12。CI 首次执行 KSP 时，Room 
 - 首页、详情、通知来源、设置、身份码、地址、规则、统计、重复记录和回收站使用同一套 miuix 色彩、字体与平滑圆角。
 - 首页、身份码、设置为一级导航，使用 Miuix 原生 `FloatingNavigationBar` / `FloatingNavigationBarItem`；详情、统计、规则、地址、重复整理、回收站、通知来源与设置子页为二级页面，不显示底栏。统计继续从侧边栏进入。
 - 一级页面使用 Miuix `Scaffold` 承载原生底栏和首页 FAB。首页保留手动添加主操作；取件码列表底部留白由 Miuix FAB 默认尺寸提供。路由仍由可恢复的 `Screen` 状态驱动，Back 优先回到首页或当前二级页面的父级。
+- 首页类型筛选和分组选择直接使用 Miuix `Button` 与 selected 语义；大字卡片操作左对齐，为右下角 FAB 留出触控空间。设置中的通知来源列表通过常规二级路由打开，不嵌在平台 Dialog 中。
 - 可见卡片、按钮、输入、开关、复选框、滑条、顶部栏、进度、Snackbar、确认弹窗和下拉弹出层优先调用 Miuix 原生组件。设置开关、滑条和外观单选使用 `SwitchPreference`、`SliderPreference` 与 `RadioButtonPreference`。`Widgets.kt` 仅保留需映射旧调用签名的基础适配；Material3 暂留作颜色语义与抽屉手势容器。抽屉本身没有采用自制仿件，其内容仍使用 Miuix 表面和控件。
 - 唯一保留的 Compose 平台 `Dialog` 是详情页的无边框全屏截图查看器；这是沉浸式图片查看窗口，不是常规提示/确认弹窗。常规业务弹窗统一走 Miuix `OverlayDialog`。
 - 主题色板与文字层级来自 `MiuixTheme`；Material3 语义颜色仅映射给尚未迁移的旧页面。识别、持久化、授权、通知和分享业务路径保持原有实现。
@@ -22,7 +25,7 @@ KSP 从 2.3.10 更新到当前稳定版 2.3.12。CI 首次执行 KSP 时，Room 
 
 ## 验证
 
-v1.3.0 的历史验证记录不代表本次 0.9.4 升级的构建结果。本次改造的 Gradle 验证状态应以任务交付报告为准；Android SDK 许可未获接受时，`assembleDebug`、单测、Lint 与 Release 均不能标记为通过。
+历史验证记录不代表当前候选的构建或设备结果；Gradle 与 SQLite 迁移检查以任务交付报告为准。若本轮没有连接设备，浅色/深色、大字、IME、TalkBack 和系统窗口行为仍待设备验收。
 
 miuix 包已在用户设备覆盖安装。进一步统一深浅色配对、普通卡片表面、状态标签和输入提示，修复底部三个身份码入口的文字/图标颜色；取消部分摘要和回收站正文额外的透明度。色彩对比度测试覆盖深浅色正文、摘要、输入提示、柔和强调及错误状态，相关组合均达到 4.5:1。详见 [主题统一与深浅色适配](MIUIX_THEME_2026-10.md)。
 

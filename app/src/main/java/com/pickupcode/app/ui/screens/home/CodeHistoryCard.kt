@@ -82,7 +82,8 @@ fun CodeHistoryCard(item: CodeHistory, onClick: () -> Unit, onDone: () -> Unit,
                     IconText(R.drawable.ic_map_pin, item.pickupAddress, iconSize = 14.dp,
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
                 }
-                if (stackActions) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { doneButton() }
+                // 堆叠布局时操作按钮靠左，给右下角悬浮添加按钮留出触控空间。
+                if (stackActions) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) { doneButton() }
             }
         }
     }

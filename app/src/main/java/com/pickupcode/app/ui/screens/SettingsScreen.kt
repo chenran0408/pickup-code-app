@@ -31,7 +31,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.SegmentedButtonDefaults
 import com.pickupcode.app.ui.miuix.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -113,6 +112,7 @@ fun SettingsScreen(
     onStatsClick: () -> Unit = {},
     onSavedAddressClick: () -> Unit = {},
     onRulesClick: () -> Unit = {},
+    onNotificationAppsClick: () -> Unit = {},
     bottomNavigationBar: @Composable () -> Unit = {},
 ) {
     val ctx = LocalContext.current
@@ -191,9 +191,6 @@ fun SettingsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
             )
         }
     ) { pad ->
@@ -208,7 +205,7 @@ fun SettingsScreen(
         ) {
             when (page) {
                 SettingsPage.RECOGNITION -> { RecognitionSettingsSection(sc); RulesSection(onRulesClick) }
-                SettingsPage.INPUT -> { InputMethodsSection(sc); NotificationStatusCard(sc) }
+                SettingsPage.INPUT -> { InputMethodsSection(sc, onNotificationAppsClick); NotificationStatusCard(sc) }
                 SettingsPage.VERIFY -> { VerifyServicesSection(sc); SavedAddressSection(onSavedAddressClick) }
                 SettingsPage.APPEARANCE -> AppearanceSection(sc)
                 SettingsPage.ABOUT -> { LearningStatsSection(sc, onStatsClick); RecognitionFeedbackSection(); AboutSection(sc) }
@@ -353,7 +350,7 @@ private fun RecognitionSettingsSection(sc: SettingsCtx) {
 
 /** ② 输入方式：无障碍 + 外部接收 + 短信 */
 @Composable
-private fun InputMethodsSection(sc: SettingsCtx) {
+private fun InputMethodsSection(sc: SettingsCtx, onNotificationAppsClick: () -> Unit) {
     SettingsSectionCard(title = "识别方式", subtitle = "选择短信、截图等识别入口") {
         SettingsSubHeader("无障碍服务")
         OutlinedButton(
@@ -367,7 +364,7 @@ private fun InputMethodsSection(sc: SettingsCtx) {
         SettingsSwitch("Intent 接收", icon = R.drawable.ic_link, sub = "接收来自其他App的分享（文本/图片）", checked = sc.s.enableIntentReceive, onChange = sc.save { AppPreferences.setEnableIntentReceive(sc.ctx, it) })
         SettingsSwitch("分享识别", icon = R.drawable.ic_upload, sub = "文本选择菜单/拖放直达时自动识别取餐取件码", checked = sc.s.enableShareDetection, onChange = sc.save { AppPreferences.setEnableShareDetection(sc.ctx, it) })
         SettingsSubHeader("短信与通知识别")
-        SmsNotificationSettings(sc)
+        SmsNotificationSettings(sc, onNotificationAppsClick)
         SettingsSwitch(
             "短信取件码自动识别", icon = R.drawable.ic_send,
             sub = if (sc.s.enableSmsReceive) "已开启" else "已关闭",
@@ -394,7 +391,7 @@ private enum class NotifStatus { OK, NEED_PERMISSION, DISABLED, CHANNEL_SILENT }
  * 返回 (状态, 说明文案)。正常时返回 OK。
  */
 @Composable
-private fun SmsNotificationSettings(sc: SettingsCtx) {
+private fun SmsNotificationSettings(sc: SettingsCtx, onNotificationAppsClick: () -> Unit) {
     val owner = LocalLifecycleOwner.current
     val listenerState by com.pickupcode.app.service.NotificationRecognitionStatus.state.collectAsState()
     var granted by remember { mutableStateOf(com.pickupcode.app.service.SmsNotificationListener.hasAccess(sc.ctx)) }
@@ -406,9 +403,7 @@ private fun SmsNotificationSettings(sc: SettingsCtx) {
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
     fun openAccess() { com.pickupcode.app.service.SmsNotificationListener.openAccess(sc.ctx) }
-    var selectingApps by rememberSaveable { mutableStateOf(false) }
-    val displayDensity = androidx.compose.ui.platform.LocalDensity.current
-    TextButton(onClick = { selectingApps = true }) {
+    TextButton(onClick = onNotificationAppsClick) {
         Text("选择通知来源（${sc.s.notificationApps.size}）")
     }
     Text(com.pickupcode.app.service.NotificationRecognitionStatus.description(sc.s.notificationApps.size, granted, listenerState),
@@ -418,13 +413,6 @@ private fun SmsNotificationSettings(sc: SettingsCtx) {
     }, enabled = listenerState.connection != com.pickupcode.app.service.NotificationRecognitionStatus.Connection.CONNECTING) { Text("重新连接") }
     if (sc.s.notificationApps.isNotEmpty()) TextButton(onClick = { openAccess() }) {
         Text(if (granted) "管理通知访问权限" else "开启通知访问权限")
-    }
-    if (selectingApps) androidx.compose.ui.window.Dialog(
-        onDismissRequest = { selectingApps = false },
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-        CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides displayDensity) {
-            NotificationAppsScreen(onBack = { selectingApps = false }, onRequestAccess = { openAccess() })
-        }
     }
 }
 

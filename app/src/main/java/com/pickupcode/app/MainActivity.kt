@@ -216,6 +216,7 @@ class MainActivity : ComponentActivity() {
                         onStatsClick = { screenBack = Screen.Settings.name; currentScreen = Screen.Stats.name },
                         onSavedAddressClick = { settingsChildBack = Screen.Settings.name; currentScreen = Screen.SavedAddress.name },
                         onRulesClick = { settingsChildBack = Screen.Settings.name; currentScreen = Screen.Rules.name },
+                        onNotificationAppsClick = { screenBack = Screen.Settings.name; currentScreen = Screen.NotificationApps.name },
                         bottomNavigationBar = { AppRootNavigationBar() }
                     )
                     Screen.Detail -> DetailScreenWrapper(
