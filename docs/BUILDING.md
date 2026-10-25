@@ -6,7 +6,7 @@
 
 | 依赖 | 版本 | 说明 |
 |------|------|------|
-| JDK | 17 | 项目的 Java/Kotlin 编译目标均为 17 |
+| JDK | 21 | Miuix 0.9.4 的 PopupPositionProvider 使用 Java 21 字节码；项目 Java/Kotlin 编译目标仍为 17 |
 | Gradle | 9.7.1 | 推荐使用仓库自带的 wrapper（见下），无需手动安装 |
 | Android SDK | compileSdk 37 / minSdk 26 / targetSdk 35 | API 37 目前在 Preview channel；Build Tools 使用 AGP 9.4.1 默认版本 36.0.0 |
 | Kotlin / AGP | Kotlin 2.4.20 / AGP 9.4.1 | 使用 AGP 内置 Kotlin 和新 DSL；Kotlin/JVM 编译目标通过 `compilerOptions` 固定为 17 |
@@ -47,7 +47,7 @@ cd pickup-code-app
 cd pickup-code-app
 
 REM 若 JDK 不在 PATH 中，先指定（替换为你的实际路径）
-set JAVA_HOME=C:\Program Files\Java\jdk-17
+set JAVA_HOME=C:\Program Files\Java\jdk-21
 
 gradlew.bat assembleDebug
 ```

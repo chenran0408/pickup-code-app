@@ -4,7 +4,7 @@
 
 框架来自 [compose-miuix-ui/miuix](https://github.com/compose-miuix-ui/miuix)，采用 Apache-2.0 许可。早期 v1.3.0 使用单体 `miuix:0.3.0`；当前源码升级到稳定版 `0.9.4`，使用官方 Android 模块 `miuix-ui-android`、`miuix-preference-android`、`miuix-icons-android`。本次未加入 `miuix-nav`：现有 `Screen` 导航足以表达一级与二级页面，不需要为了底栏替换整个导航栈。
 
-Miuix 0.9.4 上游以 Compose Multiplatform 1.12.0、Kotlin 2.4.20、AGP 9.4.1 和 Gradle 9.7.1 发布。Compose 1.12 官方要求 compileSdk 37，因此仅提升 compileSdk；minSdk 26 与 targetSdk 35 保持不变。AGP 9.x 构建使用内置 Kotlin 和新 DSL：移除 `org.jetbrains.kotlin.android`，并将 JVM 目标配置迁移到 `compilerOptions`。KSP 保持 Room 代码生成入口。版本和正式模块见 [Miuix v0.9.4 release notes](https://github.com/compose-miuix-ui/miuix/releases/tag/v0.9.4) 与[官方模块说明](https://compose-miuix-ui.github.io/miuix/guide/getting-started)。
+Miuix 0.9.4 上游以 Compose Multiplatform 1.12.0、Kotlin 2.4.20、AGP 9.4.1 和 Gradle 9.7.1 发布。Compose 1.12 官方要求 compileSdk 37，因此仅提升 compileSdk；minSdk 26 与 targetSdk 35 保持不变。AGP 9.x 构建使用内置 Kotlin 和新 DSL：移除 `org.jetbrains.kotlin.android`，并将 JVM 目标配置迁移到 `compilerOptions`。测试与 CI 使用 JDK 21，因为 Miuix 0.9.4 的 `PopupPositionProvider` 使用 Java 21 字节码；应用 Java/Kotlin 字节码仍保持 JVM 17。KSP 保持 Room 代码生成入口。版本和正式模块见 [Miuix v0.9.4 release notes](https://github.com/compose-miuix-ui/miuix/releases/tag/v0.9.4) 与[官方模块说明](https://compose-miuix-ui.github.io/miuix/guide/getting-started)。
 
 Miuix 0.9.4 Android AAR 元数据要求 `minCompileSdk=37`；Compose 1.12 也要求 compileSdk 37。当前 API 37 Preview package id 为 `platforms;android-37.0`，位于 Android Preview channel；CI 通过 `sdkmanager --channel=3` 安装。minSdk 26 与 targetSdk 35 保持不变。
 
