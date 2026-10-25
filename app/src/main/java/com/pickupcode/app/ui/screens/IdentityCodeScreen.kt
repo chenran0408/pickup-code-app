@@ -8,8 +8,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import com.pickupcode.app.ui.miuix.*
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,7 +36,10 @@ import kotlinx.coroutines.withContext
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun IdentityCodeScreen(onBack: () -> Unit) {
+fun IdentityCodeScreen(
+    onBack: () -> Unit,
+    bottomNavigationBar: @Composable () -> Unit = {},
+) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -57,7 +61,9 @@ fun IdentityCodeScreen(onBack: () -> Unit) {
         }
     }
 
-    Scaffold(
+    top.yukonga.miuix.kmp.basic.Scaffold(
+        containerColor = MiuixTheme.colorScheme.background,
+        bottomBar = bottomNavigationBar,
         topBar = {
             TopAppBar(
                 title = "身份码",
@@ -68,7 +74,7 @@ fun IdentityCodeScreen(onBack: () -> Unit) {
                 }
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) }
+        snackbarHost = { top.yukonga.miuix.kmp.basic.SnackbarHost(state = snackbar) }
     ) { padding ->
         Column(
             Modifier

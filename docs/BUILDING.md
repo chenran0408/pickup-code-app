@@ -7,10 +7,13 @@
 | 依赖 | 版本 | 说明 |
 |------|------|------|
 | JDK | 17 | 项目的 Java/Kotlin 编译目标均为 17 |
-| Gradle | 8.9 | 推荐使用仓库自带的 wrapper（见下），无需手动安装 |
-| Android SDK | compileSdk 35 / minSdk 26 / targetSdk 35 | 需要 API 35 平台 + Build Tools 34.0.0 |
+| Gradle | 9.7.1 | 推荐使用仓库自带的 wrapper（见下），无需手动安装 |
+| Android SDK | compileSdk 37 / minSdk 26 / targetSdk 35 | 需要 API 37 平台；Build Tools 按 AGP 9.4.1 默认版本安装 |
+| Kotlin / AGP | Kotlin 2.4.20 / AGP 9.4.1 | 本候选暂时关闭 AGP 内置 Kotlin 与新 DSL，沿用现有 Kotlin Gradle 插件、`kotlinOptions` 和 KSP 配置 |
+| KSP | 2.3.12 | 使用当前稳定版；Room 继续通过现有 KSP 配置生成代码 |
+| Miuix | 0.9.4 | Android 模块：`miuix-ui-android`、`miuix-preference-android`、`miuix-icons-android` |
 
-> Gradle 版本与 AGP（Android Gradle Plugin 8.7.3）有对应关系，请勿随意更换 Gradle 大版本。
+> Gradle 与 AGP 版本需匹配，请勿单独升级其中一个。Miuix 0.9.4 使用 Compose 1.12；Compose 官方要求 compileSdk 37，因此本次只提升 compileSdk。minSdk 26 和 targetSdk 35 保持不变。
 
 ### Android SDK 位置配置
 
@@ -34,7 +37,7 @@ Gradle 构建时通过以下任一方式定位 SDK：
 # 进入项目根目录
 cd pickup-code-app
 
-# 编译 Debug APK（首次运行会自动下载 Gradle 8.9 与依赖）
+# 编译 Debug APK（首次运行会自动下载 Gradle 9.7.1 与依赖）
 ./gradlew assembleDebug
 ```
 
@@ -51,10 +54,10 @@ gradlew.bat assembleDebug
 
 ### 项目缺少 gradlew 时（备用方案）
 
-如果克隆的仓库中没有 `gradlew` / `gradlew.bat` / `gradle/wrapper/gradle-wrapper.jar`（目录里只有 `gradle-wrapper.properties`），可先安装任意 Gradle（≥8.9），用它生成 wrapper 后再构建：
+如果克隆的仓库中没有 `gradlew` / `gradlew.bat` / `gradle/wrapper/gradle-wrapper.jar`（目录里只有 `gradle-wrapper.properties`），可先安装 Gradle 9.7.1，用它生成 wrapper 后再构建：
 
 ```bash
-gradle wrapper --gradle-version 8.9 --distribution-type bin
+gradle wrapper --gradle-version 9.7.1 --distribution-type bin
 ./gradlew assembleDebug
 ```
 
@@ -116,14 +119,14 @@ settingsEvaluated { settings ->
 
 ### 3. 提示 Gradle 版本与 AGP 不兼容
 
-项目锁定 Gradle 8.9（`gradle/wrapper/gradle-wrapper.properties`）。请始终使用 `./gradlew`（wrapper 会自动下载正确版本），不要用系统安装的其他 Gradle 版本直接构建。
+项目锁定 Gradle 9.7.1（`gradle/wrapper/gradle-wrapper.properties`）。请始终使用 `./gradlew`（wrapper 会自动下载正确版本），不要用系统安装的其他 Gradle 版本直接构建。
 
-### 4. 编译时提示缺少 Build Tools 34.0.0
+### 4. 编译时提示缺少 Android SDK Platform 或 Build Tools
 
-AGP 8.7 需要 Build Tools 34.0.0。通过 Android SDK Manager 安装：
+项目使用 compileSdk 37。通过 Android SDK Manager 安装 API 37 平台与 AGP 9.4.1 默认的 Build Tools 36.0.0：
 
 ```bash
-sdkmanager "build-tools;34.0.0" "platforms;android-35"
+sdkmanager "platform-tools" "platforms;android-37" "build-tools;36.0.0"
 ```
 
 ## 可选功能配置

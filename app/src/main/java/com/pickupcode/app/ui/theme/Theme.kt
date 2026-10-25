@@ -43,14 +43,14 @@ fun PickupCodeTheme(content: @Composable () -> Unit) {
             // Material 的状态/色彩类型仍供旧业务页面使用，色彩与字阶统一映射到 miuix 主题。
             val mapped = remember(colors, dark) {
                 val tokens = if (dark) androidx.compose.material3.darkColorScheme() else androidx.compose.material3.lightColorScheme()
-                val semantic = pickupSemanticColors(dark)
+                val semantic = pickupSemanticColors(colors)
                 tokens.copy(
                 primary = colors.primary, onPrimary = colors.onPrimary,
                 // Material 容器角色用 miuix 的柔和强调底色；实心主按钮仍使用 primary。
                 primaryContainer = colors.tertiaryContainer, onPrimaryContainer = colors.onTertiaryContainer,
                 secondary = colors.secondaryVariant, onSecondary = colors.onSecondaryVariant,
                 secondaryContainer = colors.secondaryContainer, onSecondaryContainer = colors.onSecondaryVariant,
-                tertiary = colors.primary, onTertiary = colors.onPrimary,
+                tertiary = colors.tertiary, onTertiary = colors.onTertiary,
                 tertiaryContainer = colors.tertiaryContainer, onTertiaryContainer = colors.onTertiaryContainer,
                 error = semantic.error, onError = semantic.onError,
                 errorContainer = semantic.errorContainer, onErrorContainer = semantic.onErrorContainer,

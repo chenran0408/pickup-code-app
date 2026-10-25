@@ -21,21 +21,23 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.rememberScrollState
 import top.yukonga.miuix.kmp.utils.SmoothRoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.SegmentedButtonDefaults
 import com.pickupcode.app.ui.miuix.*
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.preference.SliderPreference
+import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -109,7 +111,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onStatsClick: () -> Unit = {},
     onSavedAddressClick: () -> Unit = {},
-    onRulesClick: () -> Unit = {}
+    onRulesClick: () -> Unit = {},
+    bottomNavigationBar: @Composable () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     // 进程级 scope：防抖落盘/权限回调等 fire-and-forget 写不随页面销毁取消（否则 400ms 内返回会丢 Key/URL）
@@ -177,8 +180,10 @@ fun SettingsScreen(
         )
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background, // 与主页背景一致（跟随主题）
+    top.yukonga.miuix.kmp.basic.Scaffold(
+        containerColor = MiuixTheme.colorScheme.background,
+        bottomBar = bottomNavigationBar,
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
                 title = page.title,
@@ -220,13 +225,7 @@ private fun SettingsSectionCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     var expanded by remember { mutableStateOf(true) }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        // 与其他页面共用平滑圆角和表面层次，长列表不逐帧绘制阴影。
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = MaterialTheme.shapes.medium
-    ) {
+    top.yukonga.miuix.kmp.basic.Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .padding(16.dp)
@@ -280,36 +279,23 @@ private fun SettingsSwitch(
     onChange: (Boolean) -> Unit,
     @DrawableRes icon: Int? = null
 ) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp)
-            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f).padding(end = 12.dp)) {
-            // 图标（Lucide 线性）替代原先写在标题里的 Emoji（用户 2026-09-18 要求）
-            if (icon != null) {
-                com.pickupcode.app.ui.components.IconText(
-                    icon = icon,
-                    text = title,
-                    iconSize = 17.dp,
-                    style = MaterialTheme.typography.bodyLarge
+    SwitchPreference(
+        checked = checked,
+        onCheckedChange = onChange,
+        title = title,
+        summary = sub,
+        modifier = Modifier.fillMaxWidth(),
+        startAction = icon?.let { iconRes ->
+            {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MiuixTheme.colorScheme.onSurfaceVariant),
                 )
-            } else {
-                Text(title, style = MaterialTheme.typography.bodyLarge)
             }
-            sub?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onChange,
-            modifier = Modifier.clearAndSetSemantics { }
-        )
-    }
+        },
+    )
 }
 
 /* ═══════════════════ 各分组 Section ═══════════════════ */
@@ -341,18 +327,17 @@ private fun SettingsSubHeader(text: String, @DrawableRes icon: Int? = null) {
 @Composable
 private fun RecognitionSettingsSection(sc: SettingsCtx) {
     SettingsSectionCard(title = "识别范围", subtitle = "选择码的类型，调整识别灵敏度") {
-        SettingsSubHeader("识别灵敏度")
         var confDraft by remember(sc.s.confidenceThreshold) { mutableStateOf(sc.s.confidenceThreshold) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Slider(
-                value = confDraft,
-                onValueChange = { confDraft = it },
-                onValueChangeFinished = { sc.saveRun { AppPreferences.setConfidenceThreshold(sc.ctx, confDraft) } },
-                valueRange = 0.1f..0.8f,
-                modifier = Modifier.weight(1f)
-            )
-            Text("${(confDraft * 100).roundToInt()}%", modifier = Modifier.padding(start = 8.dp))
-        }
+        SliderPreference(
+            title = "识别灵敏度",
+            summary = "调节识别阈值",
+            valueText = "${(confDraft * 100).roundToInt()}%",
+            value = confDraft,
+            onValueChange = { confDraft = it },
+            onValueChangeFinished = { sc.saveRun { AppPreferences.setConfidenceThreshold(sc.ctx, confDraft) } },
+            valueRange = 0.1f..0.8f,
+            modifier = Modifier.fillMaxWidth(),
+        )
         SettingsSubHeader("识别类型")
         SettingsSwitch("取餐码", icon = R.drawable.ic_cup_soda, checked = sc.s.enableFoodCodes, onChange = sc.save { AppPreferences.setEnableFood(sc.ctx, it) })
         SettingsSwitch("取件码", icon = R.drawable.ic_package, checked = sc.s.enableParcelCodes, onChange = sc.save { AppPreferences.setEnableParcel(sc.ctx, it) })
@@ -717,30 +702,14 @@ private fun AppearanceSection(sc: SettingsCtx) {
         SettingsSwitch("大字模式", sub = "文字更大，按钮更好点",
             checked = sc.s.largeText, onChange = sc.save { AppPreferences.setLargeText(sc.ctx, it) })
         val themes = listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色")
-        if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                themes.forEach { (value, label) ->
-                    FilterChip(
-                        selected = sc.s.darkMode == value,
-                        onClick = { sc.saveRun { AppPreferences.setDarkMode(sc.ctx, value) } },
-                        label = { Text(label) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        } else SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            themes.forEachIndexed { i, (v, l) ->
-                SegmentedButton(
-                    selected = sc.s.darkMode == v,
-                    onClick = { sc.saveRun { AppPreferences.setDarkMode(sc.ctx, v) } },
-                    shape = SegmentedButtonDefaults.itemShape(i, 3),
-                    colors = SegmentedButtonDefaults.colors(
-                        activeContainerColor = MaterialTheme.colorScheme.primary,
-                        activeContentColor = MaterialTheme.colorScheme.onPrimary,
-                        inactiveContainerColor = MaterialTheme.colorScheme.surface,
-                        inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) { Text(l) }
+        Column {
+            themes.forEach { (value, label) ->
+                RadioButtonPreference(
+                    title = label,
+                    selected = sc.s.darkMode == value,
+                    onClick = { sc.saveRun { AppPreferences.setDarkMode(sc.ctx, value) } },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }

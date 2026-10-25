@@ -4,7 +4,7 @@
 
 默认在本机识别和保存；离线中文 OCR 与二维码模型随安装包提供。AI、地图和快递查询均为可选功能，需要自行配置并开启。
 
-v1.3.0 统一采用 miuix 界面，包含首页、详情、设置、侧边栏与弹窗；统一卡片、按钮、输入框与状态标签，并分别适配浅色和深色的文字对比度；迁移范围见 [miuix 说明](docs/MIUIX_MIGRATION_2026-10.md)，详细配色说明见 [主题适配](docs/MIUIX_THEME_2026-10.md)。
+当前源码在 v1.3.0 的 Miuix 主题基础上，升级到 Miuix 模块化组件，并以原生 `FloatingNavigationBar` 提供“首页 / 身份码 / 设置”一级导航。改造范围与版本选择见 [Miuix 迁移说明](docs/MIUIX_MIGRATION_2026-10.md)，主题说明见 [主题适配](docs/MIUIX_THEME_2026-10.md)。
 
 [![Build and Test](https://github.com/chenran0408/pickup-code-app/actions/workflows/ci.yml/badge.svg)](https://github.com/chenran0408/pickup-code-app/actions/workflows/ci.yml)
 [![Downloads](https://img.shields.io/github/downloads/chenran0408/pickup-code-app/total)](https://github.com/chenran0408/pickup-code-app/releases)
@@ -19,7 +19,7 @@ v1.3.0 统一采用 miuix 界面，包含首页、详情、设置、侧边栏与
 
 ## v1.3.0 更新
 
-- 全部主要页面、侧边栏和弹窗统一 MIUIX 风格，分别适配深浅色；保留清晰的取件状态与底部三个平台快捷入口。
+- v1.3.0 发布版采用统一 Miuix 风格；当前源码进一步使用 Miuix 原生悬浮底栏承担一级导航，平台码入口集中在“身份码”页面。
 - 主题支持跟随系统、浅色、深色；大字模式放大文字和常用点击区，适配通知搜索、键盘、规则标签和侧边栏滚动。
 - 按名称或包名搜索并勾选要监听的应用，显示实际通知连接状态，授权返回和断连时尝试恢复。
 - 图片分享显示识别进度与保存结果；分享当前未取码、粘贴文本或导入剪贴板，预览确认后保存。
@@ -144,7 +144,7 @@ v1.3.0 统一采用 miuix 界面，包含首页、详情、设置、侧边栏与
 
 | 模块 | 技术 |
 |------|------|
-| UI | Jetpack Compose + Material3 |
+| UI | Jetpack Compose + Miuix (`miuix-ui-android`, `miuix-preference-android`, `miuix-icons-android`); Material3 保留为少量兼容与 Drawer 基础设施 |
 | OCR | ML Kit Text Recognition (Chinese) |
 | 截屏 | 无障碍服务 takeScreenshot |
 | 外部接收 | Intent Filter (SEND / PROCESS_TEXT) |
@@ -207,7 +207,7 @@ app/src/main/java/com/pickupcode/app/
 
 想从源码编译、贡献代码或报告问题？请查看：
 
-- **[构建指南](docs/BUILDING.md)** —— 从源码编译（JDK 17 / Gradle 8.9 / Android SDK 要求、常见问题）
+- **[构建指南](docs/BUILDING.md)** —— 从源码编译（JDK 17 / Gradle 9.7.1 / Android SDK 要求、常见问题）
 - **[贡献指南](CONTRIBUTING.md)** —— 如何提 Issue、提交 PR、代码规范
 - **[识别语料回归](docs/CORPUS.md)** —— 用真实截图语料量化识别 precision/recall，如何采集新语料
 

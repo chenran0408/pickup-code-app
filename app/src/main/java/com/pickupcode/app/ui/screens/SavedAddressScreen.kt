@@ -10,7 +10,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import com.pickupcode.app.ui.miuix.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -67,7 +67,7 @@ fun SavedAddressScreen(onBack: () -> Unit) {
                 }
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) }
+        snackbarHost = { top.yukonga.miuix.kmp.basic.SnackbarHost(state = snackbar) }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             Text(

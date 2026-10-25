@@ -20,7 +20,8 @@ var storeFileConfigured = false
 
 android {
     namespace = "com.pickupcode.app"
-    compileSdk = 35
+    // Miuix 0.9.4 is based on Compose 1.12, which requires compileSdk 37.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.pickupcode.app"
@@ -121,13 +122,15 @@ ksp {
 
 dependencies {
     // Compose BOM
-    val composeBom = platform("androidx.compose:compose-bom:2024.11.00")
+    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("top.yukonga.miuix.kmp:miuix:0.3.0")
+    implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.9.4")
+    implementation("top.yukonga.miuix.kmp:miuix-preference-android:0.9.4")
+    implementation("top.yukonga.miuix.kmp:miuix-icons-android:0.9.4")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")

@@ -29,8 +29,8 @@ import com.pickupcode.app.ui.miuix.IconButton
 import androidx.compose.material3.MaterialTheme
 import com.pickupcode.app.ui.miuix.OutlinedTextField
 import com.pickupcode.app.ui.miuix.Scaffold
-import com.pickupcode.app.ui.miuix.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import com.pickupcode.app.ui.miuix.Switch
 import com.pickupcode.app.ui.miuix.Text
 import com.pickupcode.app.ui.miuix.TextButton
@@ -109,7 +109,7 @@ fun RulesScreen(onBack: () -> Unit) {
                 }
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) }
+        snackbarHost = { SnackbarHost(state = snackbar) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),

@@ -15,6 +15,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
 import com.pickupcode.app.ui.miuix.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -29,6 +30,8 @@ import com.pickupcode.app.preferences.AppPreferences
 import com.pickupcode.app.share.ShareReceiver
 import com.pickupcode.app.service.PickupCodeAccessibilityService
 import com.pickupcode.app.ui.components.ManualCodeDialog
+import com.pickupcode.app.ui.components.AppFloatingNavigationBar
+import com.pickupcode.app.ui.navigation.RootDestination
 import com.pickupcode.app.ui.screens.CodeDetailScreen
 import com.pickupcode.app.ui.screens.EditField
 import com.pickupcode.app.ui.screens.DedupScreen
@@ -84,6 +87,7 @@ class MainActivity : ComponentActivity() {
             var showManualDialog by rememberSaveable { mutableStateOf(false) }
             var settingsPage by rememberSaveable { mutableStateOf(com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name) }
             var settingsChildBack by rememberSaveable { mutableStateOf(Screen.Home.name) }
+            var screenBack by rememberSaveable { mutableStateOf(Screen.Home.name) }
             val drawerState = androidx.compose.material3.rememberDrawerState(androidx.compose.material3.DrawerValue.Closed)
             val uiScope = rememberCoroutineScope()
             val screen = Screen.valueOf(currentScreen)
@@ -91,13 +95,43 @@ class MainActivity : ComponentActivity() {
             val settings by AppPreferences.observe(this)
                 .collectAsState(initial = AppPreferences.Settings())
 
-            BackHandler(enabled = screen != Screen.Home) {
-                currentScreen = Screen.Home.name
+            BackHandler(enabled = screen != Screen.Home || drawerState.isOpen) {
+                when {
+                    drawerState.isOpen -> uiScope.launch { drawerState.close() }
+                    screen == Screen.Settings && settingsPage != com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name ->
+                        settingsPage = com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name
+                    else -> currentScreen = screenBack.takeIf { it != screen.name } ?: Screen.Home.name
+                }
+            }
+
+            @Composable
+            fun AppRootNavigationBar() {
+                val destination = when (screen) {
+                    Screen.Home -> RootDestination.HOME
+                    Screen.IdentityCode -> RootDestination.IDENTITY_CODE
+                    Screen.Settings -> if (settingsPage == com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name)
+                        RootDestination.SETTINGS else null
+                    else -> null
+                }
+                destination?.let { selected ->
+                    AppFloatingNavigationBar(selectedDestination = selected) { next ->
+                        screenBack = Screen.Home.name
+                        when (next) {
+                            RootDestination.HOME -> currentScreen = Screen.Home.name
+                            RootDestination.IDENTITY_CODE -> currentScreen = Screen.IdentityCode.name
+                            RootDestination.SETTINGS -> {
+                                settingsPage = com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name
+                                currentScreen = Screen.Settings.name
+                            }
+                        }
+                    }
+                }
             }
 
             // B3: 消费通知 extra 驱动的去重页跳转（组合期用 LaunchedEffect 置状态，避免直接改路由）
             LaunchedEffect(pendingDedup) {
                 if (pendingDedup) {
+                    screenBack = Screen.Home.name
                     currentScreen = Screen.Dedup.name
                     pendingDedup = false
                 }
@@ -105,6 +139,11 @@ class MainActivity : ComponentActivity() {
 
             val imageFeedback by com.pickupcode.app.share.SharedImageRecognition.session.feedback.collectAsStateWithLifecycle()
             PickupCodeTheme {
+                top.yukonga.miuix.kmp.basic.Scaffold(
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    contentWindowInsets = WindowInsets(0),
+                ) {
+                Box(Modifier.fillMaxSize()) {
                 androidx.compose.material3.ModalNavigationDrawer(drawerState = drawerState,
                     gesturesEnabled = screen == Screen.Home, drawerContent = {
                     com.pickupcode.app.ui.components.AppDrawerContent(onClose = { uiScope.launch { drawerState.close() } }) { key ->
@@ -112,12 +151,12 @@ class MainActivity : ComponentActivity() {
                             drawerState.close()
                             settingsChildBack = Screen.Home.name
                             when (key) {
-                                "notification_apps" -> currentScreen = Screen.NotificationApps.name
-                                "rules" -> currentScreen = Screen.Rules.name
-                                "addresses" -> currentScreen = Screen.SavedAddress.name
-                                "stats" -> currentScreen = Screen.Stats.name
-                                "dedup" -> currentScreen = Screen.Dedup.name
-                                "trash" -> currentScreen = Screen.Trash.name
+                                "notification_apps" -> { screenBack = Screen.Home.name; currentScreen = Screen.NotificationApps.name }
+                                "rules" -> { currentScreen = Screen.Rules.name }
+                                "addresses" -> { currentScreen = Screen.SavedAddress.name }
+                                "stats" -> { screenBack = Screen.Home.name; currentScreen = Screen.Stats.name }
+                                "dedup" -> { screenBack = Screen.Home.name; currentScreen = Screen.Dedup.name }
+                                "trash" -> { screenBack = Screen.Home.name; currentScreen = Screen.Trash.name }
                                 else -> {
                                     settingsPage = when (key) {
                                         "input" -> com.pickupcode.app.ui.screens.SettingsPage.INPUT.name
@@ -126,6 +165,7 @@ class MainActivity : ComponentActivity() {
                                         "about" -> com.pickupcode.app.ui.screens.SettingsPage.ABOUT.name
                                         else -> com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name
                                     }
+                                    screenBack = Screen.Home.name
                                     currentScreen = Screen.Settings.name
                                 }
                             }
@@ -160,40 +200,47 @@ class MainActivity : ComponentActivity() {
                         onOpenDrawer = { uiScope.launch { drawerState.open() } },
                         onItemClick = { id ->
                             selectedCodeId = id
+                            screenBack = Screen.Home.name
                             currentScreen = Screen.Detail.name
                         },
                         onFabClick = { showManualDialog = true },
-                        onIdentityCodeClick = { currentScreen = Screen.IdentityCode.name }
+                        bottomNavigationBar = { AppRootNavigationBar() }
                     )
                     Screen.Settings -> SettingsScreen(
                         page = com.pickupcode.app.ui.screens.SettingsPage.valueOf(settingsPage),
-                        onBack = { currentScreen = Screen.Home.name },
-                        onStatsClick = { currentScreen = Screen.Stats.name },
+                        onBack = {
+                            if (settingsPage != com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name)
+                                settingsPage = com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name
+                            else currentScreen = Screen.Home.name
+                        },
+                        onStatsClick = { screenBack = Screen.Settings.name; currentScreen = Screen.Stats.name },
                         onSavedAddressClick = { settingsChildBack = Screen.Settings.name; currentScreen = Screen.SavedAddress.name },
-                        onRulesClick = { settingsChildBack = Screen.Settings.name; currentScreen = Screen.Rules.name }
+                        onRulesClick = { settingsChildBack = Screen.Settings.name; currentScreen = Screen.Rules.name },
+                        bottomNavigationBar = { AppRootNavigationBar() }
                     )
                     Screen.Detail -> DetailScreenWrapper(
                         codeId = selectedCodeId,
-                        onBack = { currentScreen = Screen.Home.name },
+                        onBack = { currentScreen = screenBack },
                         onIdentityCodeClick = { currentScreen = Screen.IdentityCode.name }
                     )
                     Screen.Trash -> TrashScreen(
-                        onBack = { currentScreen = Screen.Home.name }
+                        onBack = { currentScreen = screenBack }
                     )
                     Screen.Stats -> StatsScreen(
-                        onBack = { currentScreen = Screen.Home.name }
+                        onBack = { currentScreen = screenBack }
                     )
                     Screen.Dedup -> DedupScreen(
-                        onBack = { currentScreen = Screen.Home.name }
+                        onBack = { currentScreen = screenBack }
                     )
                     Screen.SavedAddress -> SavedAddressScreen(
                         onBack = { currentScreen = settingsChildBack }
                     )
                     Screen.IdentityCode -> IdentityCodeScreen(
-                        onBack = { currentScreen = Screen.Home.name }
+                        onBack = { currentScreen = Screen.Home.name },
+                        bottomNavigationBar = { AppRootNavigationBar() }
                     )
                     Screen.NotificationApps -> com.pickupcode.app.ui.screens.NotificationAppsScreen(
-                        onBack = { currentScreen = Screen.Home.name },
+                        onBack = { currentScreen = screenBack },
                         onRequestAccess = { com.pickupcode.app.service.SmsNotificationListener.openAccess(this@MainActivity) }
                     )
                     Screen.Rules -> RulesScreen(
@@ -202,13 +249,13 @@ class MainActivity : ComponentActivity() {
                 }
 
                 }
-                BackHandler(enabled = drawerState.isOpen) { uiScope.launch { drawerState.close() } }
                 imageFeedback?.let { feedback ->
                     com.pickupcode.app.ui.components.SharedImageResultDialog(feedback,
                         onDismiss = { com.pickupcode.app.share.SharedImageRecognition.session.dismiss(feedback.id) },
                         onDetail = { id ->
                             com.pickupcode.app.share.SharedImageRecognition.session.dismiss(feedback.id)
                             selectedCodeId = id
+                            screenBack = screen.name
                             currentScreen = Screen.Detail.name
                         },
                         onManual = {
@@ -225,6 +272,8 @@ class MainActivity : ComponentActivity() {
                         },
                         onImport = { entries, onComplete -> importSharedCodes(entries, onComplete) }
                     )
+                }
+                }
                 }
             }
         }

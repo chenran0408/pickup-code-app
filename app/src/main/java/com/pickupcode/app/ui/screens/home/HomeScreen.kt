@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import top.yukonga.miuix.kmp.utils.SmoothRoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import com.pickupcode.app.ui.miuix.Button
 import com.pickupcode.app.ui.miuix.Card
@@ -31,10 +30,10 @@ import com.pickupcode.app.ui.miuix.Icon
 import com.pickupcode.app.ui.miuix.IconButton
 import androidx.compose.material3.MaterialTheme
 import com.pickupcode.app.ui.miuix.Scaffold
-import androidx.compose.material3.SnackbarDuration
-import com.pickupcode.app.ui.miuix.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
+import top.yukonga.miuix.kmp.basic.SnackbarDuration
+import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarResult
 import com.pickupcode.app.ui.miuix.Text
 import com.pickupcode.app.ui.miuix.TextButton
 import com.pickupcode.app.ui.miuix.TopAppBar
@@ -45,7 +44,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import com.pickupcode.app.ui.miuix.*
@@ -74,6 +74,7 @@ import android.content.ActivityNotFoundException
 import androidx.compose.ui.unit.sp
 import com.pickupcode.app.R
 import com.pickupcode.app.ui.components.IconText
+import top.yukonga.miuix.kmp.basic.FloatingActionButtonDefaults
 import com.pickupcode.app.data.AppDatabase
 import com.pickupcode.app.data.CodeHistory
 import com.pickupcode.app.ui.theme.TypeCoupon
@@ -101,7 +102,7 @@ fun HomeScreen(
     onOpenDrawer: () -> Unit,
     onItemClick: (Long) -> Unit,
     onFabClick: () -> Unit,
-    onIdentityCodeClick: () -> Unit = {}
+    bottomNavigationBar: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
     val db = remember { AppDatabase.getInstance(context) }
@@ -208,7 +209,7 @@ fun HomeScreen(
     }
 
 
-    Scaffold(
+    top.yukonga.miuix.kmp.basic.Scaffold(
         topBar = {
             TopAppBar(
                 title = "码上闪记",
@@ -230,24 +231,17 @@ fun HomeScreen(
                 )
             )
         },
-        bottomBar = {
-            Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
-                Column(Modifier.navigationBarsPadding()) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    com.pickupcode.app.ui.components.PickupIdentityCard(compact = true)
-                }
-            }
-        },
+        bottomBar = bottomNavigationBar,
         floatingActionButton = {
-            com.pickupcode.app.ui.miuix.ExtendedFloatingActionButton(
+            top.yukonga.miuix.kmp.basic.FloatingActionButton(
                 onClick = onFabClick,
-                shape = MaterialTheme.shapes.medium,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                modifier = Modifier.semantics {
+                    contentDescription = "手动添加取件码或取餐码"
+                },
+                minWidth = FloatingActionButtonDefaults.MinWidth,
+                minHeight = FloatingActionButtonDefaults.MinHeight,
             ) {
-                Icon(Icons.Default.Add, null)
-                Spacer(Modifier.width(8.dp))
-                Text("添加码")
+                        Icon(top.yukonga.miuix.kmp.icon.MiuixIcons.Add, null)
             }
         }
     ) { padding ->
@@ -262,7 +256,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
-                contentPadding = PaddingValues(bottom = if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f) 120.dp else 104.dp)
+                contentPadding = PaddingValues(bottom = FloatingActionButtonDefaults.MinHeight + 16.dp)
             ) {
             item(key = "filters", contentType = "controls") {
                 FilterChipRow(currentFilter = typeFilter, onFilterChange = { typeFilter = it })
@@ -489,7 +483,7 @@ fun HomeScreen(
             }  // LazyColumn 结束
             // 顶部提示层：画在列表之上，固定在界面上方（顶部栏之下）
             SnackbarHost(
-                hostState = snackbarHostState,
+                state = snackbarHostState,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(horizontal = 12.dp, vertical = 4.dp)

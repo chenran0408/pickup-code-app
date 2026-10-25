@@ -3,31 +3,20 @@
 package com.pickupcode.app.ui.miuix
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.animation.core.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -37,10 +26,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.*
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.SmoothRoundedCornerShape
 
@@ -83,36 +68,82 @@ fun Surface(modifier: Modifier = Modifier, shape: Shape = SmoothRoundedCornerSha
     color: Color = MaterialTheme.colorScheme.surface, contentColor: Color = MaterialTheme.colorScheme.onSurface,
     tonalElevation: Dp = 0.dp, shadowElevation: Dp = 0.dp, border: BorderStroke? = null, content: @Composable () -> Unit) {
     top.yukonga.miuix.kmp.basic.Surface(modifier, shape = shape, color = color, border = border,
-        shadowElevation = shadowElevation.value) { CompositionLocalProvider(LocalContent provides contentColor, content = content) }
+        shadowElevation = shadowElevation) { CompositionLocalProvider(LocalContent provides contentColor, content = content) }
 }
 
 @Composable
-fun Card(modifier: Modifier = Modifier, shape: Shape = SmoothRoundedCornerShape(20.dp),
+fun Card(modifier: Modifier = Modifier, shape: Shape = SmoothRoundedCornerShape(16.dp),
     colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation: CardElevation = CardDefaults.cardElevation(0.dp),
     border: BorderStroke? = null, content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier, shape, colors.containerColor, colors.contentColor, border = border) { Column(content = content) }
+    if (border != null) {
+        Surface(modifier, shape, colors.containerColor, colors.contentColor, border = border) { Column(content = content) }
+    } else {
+        top.yukonga.miuix.kmp.basic.Card(
+            modifier = modifier,
+            cornerRadius = 16.dp,
+            colors = top.yukonga.miuix.kmp.basic.CardColors(colors.containerColor, colors.contentColor),
+            content = content,
+        )
+    }
 }
 
 @Composable
 fun Card(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
-    shape: Shape = SmoothRoundedCornerShape(20.dp), colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    shape: Shape = SmoothRoundedCornerShape(16.dp), colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation: CardElevation = CardDefaults.cardElevation(0.dp), border: BorderStroke? = null,
-    content: @Composable ColumnScope.() -> Unit) = Card(modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick), shape, colors, elevation, border, content)
+    content: @Composable ColumnScope.() -> Unit) {
+    if (border != null) {
+        Card(modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick), shape, colors, elevation, border, content)
+    } else {
+        top.yukonga.miuix.kmp.basic.Card(
+            modifier = modifier,
+            cornerRadius = 16.dp,
+            colors = top.yukonga.miuix.kmp.basic.CardColors(colors.containerColor, colors.contentColor),
+            pressFeedbackType = top.yukonga.miuix.kmp.basic.PressFeedbackType.Sink,
+            showIndication = true,
+            onClick = if (enabled) onClick else null,
+            content = content,
+        )
+    }
+}
 
 @Composable
 fun Button(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
     shape: Shape = SmoothRoundedCornerShape(16.dp), colors: ButtonColors = ButtonDefaults.buttonColors(),
     border: BorderStroke? = null, contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
     content: @Composable RowScope.() -> Unit) {
-    val background = (if (enabled) colors.containerColor else colors.disabledContainerColor)
-        .let { if (it == Color.Transparent) MiuixTheme.colorScheme.secondaryVariant else it }
-    top.yukonga.miuix.kmp.basic.Surface(onClick, modifier, enabled, shape, background, border) {
-        CompositionLocalProvider(LocalContent provides if (enabled) colors.contentColor else colors.disabledContentColor) {
+    val background = if (colors.containerColor == Color.Transparent) MiuixTheme.colorScheme.secondaryVariant
+        else colors.containerColor
+    if (border != null) {
+        top.yukonga.miuix.kmp.basic.Surface(
+            onClick = onClick,
+            modifier = modifier,
+            enabled = enabled,
+            shape = shape,
+            color = background,
+            contentColor = colors.contentColor,
+            border = border,
+        ) {
             ProvideTextStyle(MiuixTheme.textStyles.button) {
                 Row(Modifier.defaultMinSize(minHeight = controlHeight()).padding(contentPadding),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, content = content)
             }
         }
+    } else {
+        top.yukonga.miuix.kmp.basic.Button(
+            onClick = onClick,
+            modifier = modifier,
+            enabled = enabled,
+            minHeight = controlHeight(),
+            colors = top.yukonga.miuix.kmp.basic.ButtonColors(
+                color = background,
+                disabledColor = colors.disabledContainerColor,
+                contentColor = colors.contentColor,
+                disabledContentColor = colors.disabledContentColor,
+            ),
+            insideMargin = contentPadding,
+            content = content,
+        )
     }
 }
 
@@ -120,14 +151,20 @@ fun Button(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean 
 fun TextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
     colors: ButtonColors = ButtonDefaults.textButtonColors(), contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
     shape: Shape = SmoothRoundedCornerShape(12.dp), content: @Composable RowScope.() -> Unit) {
-    top.yukonga.miuix.kmp.basic.Surface(onClick, modifier, enabled, shape, Color.Transparent) {
-        CompositionLocalProvider(LocalContent provides if (enabled) colors.contentColor else colors.disabledContentColor) {
-            ProvideTextStyle(MiuixTheme.textStyles.button) {
-                Row(Modifier.defaultMinSize(minHeight = controlHeight()).padding(contentPadding), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center, content = content)
-            }
-        }
-    }
+    top.yukonga.miuix.kmp.basic.Button(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        minHeight = controlHeight(),
+        colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColors(
+            color = Color.Transparent,
+            disabledColor = colors.disabledContainerColor,
+            contentColor = colors.contentColor,
+            disabledContentColor = colors.disabledContentColor,
+        ),
+        insideMargin = contentPadding,
+        content = content,
+    )
 }
 
 @Composable
@@ -193,54 +230,6 @@ fun OutlinedTextField(value: String, onValueChange: (String) -> Unit, modifier: 
 }
 
 @Composable
-fun Slider(value: Float, onValueChange: (Float) -> Unit, modifier: Modifier = Modifier,
-    onValueChangeFinished: (() -> Unit)? = null, valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
-    enabled: Boolean = true) {
-    val finished by rememberUpdatedState(onValueChangeFinished)
-    val change by rememberUpdatedState(onValueChange)
-    top.yukonga.miuix.kmp.basic.Slider(value, onValueChange,
-        modifier.semantics {
-            progressBarRangeInfo = ProgressBarRangeInfo(value, valueRange)
-            setProgress { change(it.coerceIn(valueRange)); finished?.invoke(); true }
-        }.pointerInput(enabled) {
-            if (enabled) awaitEachGesture {
-                awaitFirstDown(requireUnconsumed = false)
-                do { val event = awaitPointerEvent(PointerEventPass.Final) } while (event.changes.any { it.pressed })
-                finished?.invoke()
-            }
-        }, enabled, minValue = valueRange.start, maxValue = valueRange.endInclusive)
-}
-
-@Composable
-@OptIn(ExperimentalLayoutApi::class)
-fun AlertDialog(onDismissRequest: () -> Unit, confirmButton: @Composable () -> Unit,
-    modifier: Modifier = Modifier, dismissButton: @Composable (() -> Unit)? = null,
-    title: @Composable (() -> Unit)? = null, text: @Composable (() -> Unit)? = null,
-    properties: DialogProperties = DialogProperties(), icon: @Composable (() -> Unit)? = null) {
-    val density = LocalDensity.current
-    Dialog(onDismissRequest, properties) {
-        // 独立窗口会提供系统字号，重新传递应用的大字设置，避免弹窗字号回退。
-        CompositionLocalProvider(LocalDensity provides density) {
-        top.yukonga.miuix.kmp.basic.Card(modifier.fillMaxWidth(), cornerRadius = 28.dp, insideMargin = PaddingValues(24.dp)) {
-            icon?.invoke()
-            title?.let {
-                CompositionLocalProvider(LocalContent provides MaterialTheme.colorScheme.onSurface) {
-                    ProvideTextStyle(MiuixTheme.textStyles.title4) { it() }
-                }
-                Spacer(Modifier.height(16.dp))
-            }
-            Box(Modifier.weight(1f, fill = false)) { text?.invoke() }
-            Spacer(Modifier.height(16.dp))
-            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                dismissButton?.invoke(); confirmButton()
-            }
-        }
-        }
-    }
-}
-
-@Composable
 fun TopAppBar(title: String, modifier: Modifier = Modifier, navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {}, colors: TopAppBarColors = TopAppBarDefaults.topAppBarColors()) {
     top.yukonga.miuix.kmp.basic.SmallTopAppBar(title, modifier.statusBarsPadding(),
@@ -255,68 +244,6 @@ fun Scaffold(modifier: Modifier = Modifier, topBar: @Composable () -> Unit = {},
         snackbarHost = snackbarHost, containerColor = containerColor, contentWindowInsets = WindowInsets.safeDrawing, content = content)
 
 @Composable
-fun ExtendedFloatingActionButton(onClick: () -> Unit, modifier: Modifier = Modifier,
-    shape: Shape = SmoothRoundedCornerShape(16.dp), containerColor: Color = MaterialTheme.colorScheme.primary,
-    contentColor: Color = MaterialTheme.colorScheme.onPrimary, content: @Composable RowScope.() -> Unit) =
-    Button(onClick, modifier, shape = shape, colors = ButtonDefaults.buttonColors(containerColor, contentColor),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp), content = content)
-
-@Composable
-fun FloatingActionButton(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) =
-    ExtendedFloatingActionButton(onClick, modifier) { content() }
-
-@Composable
-fun DropdownMenu(expanded: Boolean, onDismissRequest: () -> Unit, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    val density = LocalDensity.current
-    val margin = with(LocalDensity.current) { 8.dp.roundToPx() }
-    val maxWidth = minOf(320.dp, (LocalConfiguration.current.screenWidthDp.dp - 32.dp).coerceAtLeast(1.dp))
-    if (expanded) Popup(popupPositionProvider = remember(margin) { MenuPosition(margin) },
-        onDismissRequest = onDismissRequest, properties = PopupProperties(focusable = true)) {
-        CompositionLocalProvider(LocalDensity provides density) {
-        top.yukonga.miuix.kmp.basic.Card(modifier.widthIn(min = minOf(160.dp, maxWidth), max = maxWidth), cornerRadius = 20.dp) {
-            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()).padding(8.dp), content = content)
-        }
-        }
-    }
-}
-
-@Composable
-fun DropdownMenuItem(text: @Composable () -> Unit, onClick: () -> Unit, modifier: Modifier = Modifier,
-    enabled: Boolean = true, leadingIcon: @Composable (() -> Unit)? = null, trailingIcon: @Composable (() -> Unit)? = null) {
-    TextButton(onClick, modifier.fillMaxWidth(), enabled, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)) {
-        leadingIcon?.invoke(); Box(Modifier.weight(1f).padding(horizontal = 8.dp)) { text() }; trailingIcon?.invoke()
-    }
-}
-
-@Composable
-fun ModalDrawerSheet(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    val width = minOf(if (LocalDensity.current.fontScale >= 1.3f) 360.dp else 320.dp,
-        (LocalConfiguration.current.screenWidthDp.dp - 24.dp).coerceAtLeast(1.dp))
-    Surface(modifier.width(width).fillMaxHeight(), shape = SmoothRoundedCornerShape(24.dp), color = MiuixTheme.colorScheme.background) {
-        Column(Modifier.statusBarsPadding().navigationBarsPadding(), content = content)
-    }
-}
-
-@Composable
-fun NavigationDrawerItem(label: @Composable () -> Unit, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Button(onClick, modifier.fillMaxWidth().padding(vertical = 2.dp), colors = ButtonDefaults.buttonColors(
-        containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)) {
-        Box(Modifier.fillMaxWidth()) { label() }
-    }
-}
-
-@Composable
-fun SingleChoiceSegmentedButtonRow(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) =
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), content = content)
-
-@Composable
-fun RowScope.SegmentedButton(selected: Boolean, onClick: () -> Unit, shape: Shape,
-    colors: SegmentedButtonColors = SegmentedButtonDefaults.colors(), label: @Composable () -> Unit) {
-    FilterChip(selected, onClick, label, Modifier.weight(1f), shape = SmoothRoundedCornerShape(12.dp))
-}
-
-@Composable
 fun HorizontalDivider(modifier: Modifier = Modifier, thickness: Dp = 1.dp, color: Color = MiuixTheme.colorScheme.dividerLine) =
     Box(modifier.fillMaxWidth().height(thickness).background(color))
 
@@ -324,41 +251,33 @@ fun HorizontalDivider(modifier: Modifier = Modifier, thickness: Dp = 1.dp, color
 fun VerticalDivider(modifier: Modifier = Modifier, thickness: Dp = 1.dp, color: Color = MiuixTheme.colorScheme.dividerLine) =
     Box(modifier.width(thickness).fillMaxHeight().background(color))
 
-@Composable
-fun SnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier) {
-    androidx.compose.material3.SnackbarHost(hostState, modifier) { data ->
-        top.yukonga.miuix.kmp.basic.Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(data.visuals.message, Modifier.weight(1f))
-                data.visuals.actionLabel?.let { TextButton(onClick = { data.performAction() }) { Text(it) } }
-                if (data.visuals.withDismissAction) TextButton(onClick = { data.dismiss() }) { Text("关闭") }
-            }
-        }
-    }
-}
-
-// 此版本 miuix 没有进度控件，用统一色彩与圆头线条补齐，保持识别反馈。
+// The Miuix 0.9.x progress indicators provide their own track and motion semantics.
 @Composable
 fun LinearProgressIndicator(progress: () -> Float, modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary, trackColor: Color = MiuixTheme.colorScheme.secondaryVariant) {
-    Canvas(modifier.fillMaxWidth().height(4.dp).semantics { progressBarRangeInfo = ProgressBarRangeInfo(progress().coerceIn(0f, 1f), 0f..1f) }) {
-        drawLine(trackColor, androidx.compose.ui.geometry.Offset(0f, size.height / 2), androidx.compose.ui.geometry.Offset(size.width, size.height / 2), size.height, StrokeCap.Round)
-        drawLine(color, androidx.compose.ui.geometry.Offset(0f, size.height / 2), androidx.compose.ui.geometry.Offset(size.width * progress().coerceIn(0f, 1f), size.height / 2), size.height, StrokeCap.Round)
-    }
+    top.yukonga.miuix.kmp.basic.LinearProgressIndicator(
+        modifier = modifier,
+        progress = progress().coerceIn(0f, 1f),
+        colors = top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults.progressIndicatorColors(
+            foregroundColor = color,
+            backgroundColor = trackColor,
+        ),
+    )
 }
 
 @Composable
 fun LinearProgressIndicator(modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary) {
-    val transition = rememberInfiniteTransition(label = "loading")
-    val progress by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "progress")
-    LinearProgressIndicator({ progress }, modifier.semantics { progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate }, color)
+    top.yukonga.miuix.kmp.basic.LinearProgressIndicator(
+        modifier = modifier,
+        colors = top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults.progressIndicatorColors(foregroundColor = color),
+    )
 }
 
 @Composable
 fun CircularProgressIndicator(modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary, strokeWidth: Dp = 3.dp) {
-    val transition = rememberInfiniteTransition(label = "loading")
-    val rotation by transition.animateFloat(0f, 360f, infiniteRepeatable(tween(1000, easing = LinearEasing)), label = "rotation")
-    Canvas(modifier.size(32.dp).semantics { progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate }) {
-        drawArc(color, rotation, 240f, false, style = Stroke(strokeWidth.toPx(), cap = StrokeCap.Round))
-    }
+    top.yukonga.miuix.kmp.basic.CircularProgressIndicator(
+        modifier = modifier,
+        colors = top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults.progressIndicatorColors(foregroundColor = color),
+        strokeWidth = strokeWidth,
+    )
 }
