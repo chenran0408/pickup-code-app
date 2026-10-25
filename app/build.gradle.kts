@@ -1,12 +1,12 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
 
 // 读取本地签名配置（keystore.properties 已 .gitignore，不进仓库)
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 val keystoreProperties = Properties().apply {
     val f = rootProject.file("keystore.properties")
@@ -92,10 +92,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     testOptions {
         unitTests.all {
             it.useJUnitPlatform()
@@ -111,6 +107,12 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 

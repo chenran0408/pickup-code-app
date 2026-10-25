@@ -9,7 +9,7 @@
 | JDK | 17 | 项目的 Java/Kotlin 编译目标均为 17 |
 | Gradle | 9.7.1 | 推荐使用仓库自带的 wrapper（见下），无需手动安装 |
 | Android SDK | compileSdk 37 / minSdk 26 / targetSdk 35 | API 37 目前在 Preview channel；Build Tools 使用 AGP 9.4.1 默认版本 36.0.0 |
-| Kotlin / AGP | Kotlin 2.4.20 / AGP 9.4.1 | 本候选暂时关闭 AGP 内置 Kotlin 与新 DSL，沿用现有 Kotlin Gradle 插件、`kotlinOptions` 和 KSP 配置 |
+| Kotlin / AGP | Kotlin 2.4.20 / AGP 9.4.1 | 使用 AGP 内置 Kotlin 和新 DSL；Kotlin/JVM 编译目标通过 `compilerOptions` 固定为 17 |
 | KSP | 2.3.12 | 使用当前稳定版；Room 继续通过现有 KSP 配置生成代码 |
 | Miuix | 0.9.4 | Android 模块：`miuix-ui-android`、`miuix-preference-android`、`miuix-icons-android` |
 
