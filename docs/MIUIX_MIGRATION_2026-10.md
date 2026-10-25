@@ -8,7 +8,7 @@ Miuix 0.9.4 上游以 Compose Multiplatform 1.12.0、Kotlin 2.4.20、AGP 9.4.1 �
 
 Miuix 0.9.4 Android AAR 元数据要求 `minCompileSdk=37`；Compose 1.12 也要求 compileSdk 37。当前 API 37 Preview package id 为 `platforms;android-37.0`，位于 Android Preview channel；CI 通过 `sdkmanager --channel=3` 安装。minSdk 26 与 targetSdk 35 保持不变。
 
-KSP 从 2.3.10 更新到当前稳定版 2.3.12，以保持 Room 代码生成器与升级后的 Kotlin / AGP 工具链兼容；Room 配置和数据库代码未改。
+KSP 从 2.3.10 更新到当前稳定版 2.3.12。CI 首次执行 KSP 时，Room 2.6.1 报 `unexpected jvm signature V`；这是 KSP2 处理 Room suspend Unit 方法的已知问题，Room 2.7+ 已修复，因此 runtime、ktx、compiler 统一升级到稳定版 2.8.5。DAO、Repository、schema JSON 和迁移逻辑均未修改；CI 会运行现有 SQLite migration check 与单元测试。
 
 ## 界面范围
 
