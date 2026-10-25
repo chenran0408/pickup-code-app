@@ -18,14 +18,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import top.yukonga.miuix.kmp.utils.SmoothRoundedCornerShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import com.pickupcode.app.ui.miuix.Button
 import com.pickupcode.app.ui.miuix.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import com.pickupcode.app.ui.miuix.FloatingActionButton
 import com.pickupcode.app.ui.miuix.Icon
 import com.pickupcode.app.ui.miuix.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -75,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import com.pickupcode.app.R
 import com.pickupcode.app.ui.components.IconText
 import top.yukonga.miuix.kmp.basic.FloatingActionButtonDefaults
+import top.yukonga.miuix.kmp.icon.extended.Add
 import com.pickupcode.app.data.AppDatabase
 import com.pickupcode.app.data.CodeHistory
 import com.pickupcode.app.ui.theme.TypeCoupon

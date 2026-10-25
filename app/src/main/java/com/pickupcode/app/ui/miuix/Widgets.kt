@@ -27,7 +27,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.SmoothRoundedCornerShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.state.ToggleableState
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 // 原有页面保留色彩角色与回调签名；可见控件由 miuix 绘制，避免逐页混用两套视觉样式。
 private val LocalContent = LocalContentColor
@@ -64,7 +66,7 @@ fun IconButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Bool
 }
 
 @Composable
-fun Surface(modifier: Modifier = Modifier, shape: Shape = SmoothRoundedCornerShape(0.dp),
+fun Surface(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(0.dp),
     color: Color = MaterialTheme.colorScheme.surface, contentColor: Color = MaterialTheme.colorScheme.onSurface,
     tonalElevation: Dp = 0.dp, shadowElevation: Dp = 0.dp, border: BorderStroke? = null, content: @Composable () -> Unit) {
     top.yukonga.miuix.kmp.basic.Surface(modifier, shape = shape, color = color, border = border,
@@ -72,7 +74,7 @@ fun Surface(modifier: Modifier = Modifier, shape: Shape = SmoothRoundedCornerSha
 }
 
 @Composable
-fun Card(modifier: Modifier = Modifier, shape: Shape = SmoothRoundedCornerShape(16.dp),
+fun Card(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(16.dp),
     colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation: CardElevation = CardDefaults.cardElevation(0.dp),
     border: BorderStroke? = null, content: @Composable ColumnScope.() -> Unit) {
     if (border != null) {
@@ -89,7 +91,7 @@ fun Card(modifier: Modifier = Modifier, shape: Shape = SmoothRoundedCornerShape(
 
 @Composable
 fun Card(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
-    shape: Shape = SmoothRoundedCornerShape(16.dp), colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    shape: Shape = RoundedCornerShape(16.dp), colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation: CardElevation = CardDefaults.cardElevation(0.dp), border: BorderStroke? = null,
     content: @Composable ColumnScope.() -> Unit) {
     if (border != null) {
@@ -99,7 +101,7 @@ fun Card(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = 
             modifier = modifier,
             cornerRadius = 16.dp,
             colors = top.yukonga.miuix.kmp.basic.CardColors(colors.containerColor, colors.contentColor),
-            pressFeedbackType = top.yukonga.miuix.kmp.basic.PressFeedbackType.Sink,
+            pressFeedbackType = PressFeedbackType.Sink,
             showIndication = true,
             onClick = if (enabled) onClick else null,
             content = content,
@@ -109,7 +111,7 @@ fun Card(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = 
 
 @Composable
 fun Button(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
-    shape: Shape = SmoothRoundedCornerShape(16.dp), colors: ButtonColors = ButtonDefaults.buttonColors(),
+    shape: Shape = RoundedCornerShape(16.dp), colors: ButtonColors = ButtonDefaults.buttonColors(),
     border: BorderStroke? = null, contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
     content: @Composable RowScope.() -> Unit) {
     val background = if (colors.containerColor == Color.Transparent) MiuixTheme.colorScheme.secondaryVariant
@@ -150,7 +152,7 @@ fun Button(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean 
 @Composable
 fun TextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
     colors: ButtonColors = ButtonDefaults.textButtonColors(), contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-    shape: Shape = SmoothRoundedCornerShape(12.dp), content: @Composable RowScope.() -> Unit) {
+    shape: Shape = RoundedCornerShape(12.dp), content: @Composable RowScope.() -> Unit) {
     top.yukonga.miuix.kmp.basic.Button(
         onClick = onClick,
         modifier = modifier,
@@ -169,20 +171,20 @@ fun TextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Bool
 
 @Composable
 fun OutlinedButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
-    shape: Shape = SmoothRoundedCornerShape(16.dp), colors: ButtonColors = ButtonDefaults.outlinedButtonColors(),
+    shape: Shape = RoundedCornerShape(16.dp), colors: ButtonColors = ButtonDefaults.outlinedButtonColors(),
     border: BorderStroke? = null, contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
     content: @Composable RowScope.() -> Unit) = Button(onClick, modifier, enabled, shape, colors, border, contentPadding, content)
 
 @Composable
 fun FilledTonalButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
-    shape: Shape = SmoothRoundedCornerShape(16.dp), colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
+    shape: Shape = RoundedCornerShape(16.dp), colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp), content: @Composable RowScope.() -> Unit) =
     Button(onClick, modifier, enabled, shape, colors, contentPadding = contentPadding, content = content)
 
 @Composable
 fun FilterChip(selected: Boolean, onClick: () -> Unit, label: @Composable () -> Unit, modifier: Modifier = Modifier,
     enabled: Boolean = true, leadingIcon: @Composable (() -> Unit)? = null, trailingIcon: @Composable (() -> Unit)? = null,
-    colors: SelectableChipColors = FilterChipDefaults.filterChipColors(), shape: Shape = SmoothRoundedCornerShape(12.dp), border: BorderStroke? = null) {
+    colors: SelectableChipColors = FilterChipDefaults.filterChipColors(), shape: Shape = RoundedCornerShape(12.dp), border: BorderStroke? = null) {
     val background = if (selected) MaterialTheme.colorScheme.primary else MiuixTheme.colorScheme.secondaryVariant
     val foreground = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
     Button(onClick, modifier.semantics { this.selected = selected; role = Role.Checkbox }, enabled, shape,
@@ -206,7 +208,12 @@ fun Switch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Mo
 
 @Composable
 fun Checkbox(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier, enabled: Boolean = true) =
-    top.yukonga.miuix.kmp.basic.Checkbox(checked, onCheckedChange, modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp), enabled = enabled)
+    top.yukonga.miuix.kmp.basic.Checkbox(
+        state = ToggleableState(checked),
+        onClick = if (enabled && onCheckedChange != null) ({ onCheckedChange(!checked) }) else null,
+        modifier = modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+        enabled = enabled,
+    )
 
 @Composable
 fun OutlinedTextField(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier,
@@ -218,8 +225,10 @@ fun OutlinedTextField(value: String, onValueChange: (String) -> Unit, modifier: 
     visualTransformation: VisualTransformation = VisualTransformation.None) {
     Column(modifier) {
         top.yukonga.miuix.kmp.basic.TextField(value, onValueChange, Modifier.fillMaxWidth(), label = labelText,
-            backgroundColor = MiuixTheme.colorScheme.secondaryContainer,
-            labelColor = if (isError) MaterialTheme.colorScheme.error else MiuixTheme.colorScheme.onSecondaryContainer,
+            colors = top.yukonga.miuix.kmp.basic.TextFieldDefaults.textFieldColors(
+                backgroundColor = MiuixTheme.colorScheme.secondaryContainer,
+                labelColor = if (isError) MaterialTheme.colorScheme.error else MiuixTheme.colorScheme.onSecondaryContainer,
+            ),
             enabled = enabled, readOnly = readOnly, singleLine = singleLine, maxLines = maxLines, minLines = minLines,
             keyboardOptions = keyboardOptions, keyboardActions = keyboardActions, visualTransformation = visualTransformation,
             leadingIcon = leadingIcon, trailingIcon = trailingIcon)
@@ -233,7 +242,7 @@ fun OutlinedTextField(value: String, onValueChange: (String) -> Unit, modifier: 
 fun TopAppBar(title: String, modifier: Modifier = Modifier, navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {}, colors: TopAppBarColors = TopAppBarDefaults.topAppBarColors()) {
     top.yukonga.miuix.kmp.basic.SmallTopAppBar(title, modifier.statusBarsPadding(),
-        navigationIcon = navigationIcon, actions = actions, horizontalPadding = 12.dp)
+        navigationIcon = navigationIcon, actions = actions)
 }
 
 @Composable

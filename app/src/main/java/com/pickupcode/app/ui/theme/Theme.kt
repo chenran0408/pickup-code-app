@@ -16,7 +16,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pickupcode.app.preferences.AppPreferences
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.SmoothRoundedCornerShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 @Composable
 fun PickupCodeTheme(content: @Composable () -> Unit) {
@@ -50,7 +50,7 @@ fun PickupCodeTheme(content: @Composable () -> Unit) {
                 primaryContainer = colors.tertiaryContainer, onPrimaryContainer = colors.onTertiaryContainer,
                 secondary = colors.secondaryVariant, onSecondary = colors.onSecondaryVariant,
                 secondaryContainer = colors.secondaryContainer, onSecondaryContainer = colors.onSecondaryVariant,
-                tertiary = colors.tertiary, onTertiary = colors.onTertiary,
+                tertiary = colors.primaryVariant, onTertiary = colors.onPrimaryVariant,
                 tertiaryContainer = colors.tertiaryContainer, onTertiaryContainer = colors.onTertiaryContainer,
                 error = semantic.error, onError = semantic.onError,
                 errorContainer = semantic.errorContainer, onErrorContainer = semantic.onErrorContainer,
@@ -68,8 +68,8 @@ fun PickupCodeTheme(content: @Composable () -> Unit) {
                     titleLarge = styles.title4, titleMedium = styles.subtitle, titleSmall = styles.headline2,
                     headlineLarge = styles.title1, headlineMedium = styles.title2, headlineSmall = styles.title3,
                     labelLarge = styles.button, labelMedium = styles.footnote1, labelSmall = styles.footnote2),
-                shapes = Shapes(small = SmoothRoundedCornerShape(12.dp), medium = SmoothRoundedCornerShape(20.dp),
-                    large = SmoothRoundedCornerShape(20.dp), extraLarge = SmoothRoundedCornerShape(28.dp))) {
+                shapes = Shapes(small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(20.dp),
+                    large = RoundedCornerShape(20.dp), extraLarge = RoundedCornerShape(28.dp))) {
                 CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides colors.onSurface, content = content)
             }
         }

@@ -15,7 +15,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.SmoothRoundedCornerShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 /** Existing dialog call sites mapped to Miuix's native overlay dialog. */
 @Composable
@@ -112,7 +112,7 @@ fun DropdownMenuItem(
 fun ModalDrawerSheet(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     val width = minOf(if (LocalDensity.current.fontScale >= 1.3f) 360.dp else 320.dp,
         (LocalConfiguration.current.screenWidthDp.dp - 24.dp).coerceAtLeast(1.dp))
-    Surface(modifier.width(width).fillMaxHeight(), shape = SmoothRoundedCornerShape(24.dp),
+    Surface(modifier.width(width).fillMaxHeight(), shape = RoundedCornerShape(24.dp),
         color = MiuixTheme.colorScheme.background) {
         Column(Modifier.statusBarsPadding().navigationBarsPadding(), content = content)
     }

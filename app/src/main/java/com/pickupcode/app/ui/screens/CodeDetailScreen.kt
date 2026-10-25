@@ -7,7 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import top.yukonga.miuix.kmp.utils.SmoothRoundedCornerShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -321,7 +321,7 @@ fun CodeDetailScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(8.dp))
                         bitmap?.let { bmp -> Image(bitmap = bmp.asImageBitmap(), contentDescription = "截屏",
-                            modifier = Modifier.fillMaxWidth().clip(SmoothRoundedCornerShape(8.dp)), contentScale = ContentScale.FillWidth) }
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.FillWidth) }
                         IconText(R.drawable.ic_pointer, "点击放大查看",
                             iconSize = 13.dp,
                             style = MaterialTheme.typography.labelSmall,
