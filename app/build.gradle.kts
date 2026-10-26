@@ -36,8 +36,10 @@ android {
         // ⚠️ 打 tag 时必须让 tag 落在版本号 bump 的提交（或其之后）上 —— v1.0.9 出现过 tag 与产物错位；
         //    release.yml 现已加"APK versionName == tag"校验来拦截这类失误。
         //   28 / 1.2.0  —— 短信/微信通知识别、验证码排除、已取历史、首页快捷操作和 arm64 压缩发布
-        versionCode = 29
-        versionName = "1.3.0"
+        //   29 / 1.3.0  —— Miuix 视觉迁移、通知来源管理和分享识别反馈
+        //   30 / 1.3.1  —— 首页身份码快捷入口、精简悬浮导航和分类设置
+        versionCode = 30
+        versionName = "1.3.1"
     }
 
     signingConfigs {
@@ -133,7 +135,6 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.9.4")
     implementation("top.yukonga.miuix.kmp:miuix-preference-android:0.9.4")
     implementation("top.yukonga.miuix.kmp:miuix-icons-android:0.9.4")
-    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")

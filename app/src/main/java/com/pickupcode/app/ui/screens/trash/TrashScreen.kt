@@ -8,13 +8,25 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Undo
+import top.yukonga.miuix.kmp.basic.Button as MiuixButton
+import top.yukonga.miuix.kmp.basic.ButtonColors as MiuixButtonColors
+import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.pickupcode.app.ui.miuix.Card
+import com.pickupcode.app.ui.miuix.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.pickupcode.app.ui.miuix.Icon
@@ -30,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -45,6 +58,7 @@ import com.pickupcode.app.service.CodeCompletion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -56,6 +70,7 @@ fun TrashScreen(onBack: () -> Unit) {
     val db = AppDatabase.getInstance(context)
     val trashHistory by db.repository.observeTrash().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
 
     Scaffold(
         topBar = {
@@ -63,11 +78,12 @@ fun TrashScreen(onBack: () -> Unit) {
                 title = "回收站",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(MiuixIcons.Back, contentDescription = "返回")
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(state = snackbar) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -105,13 +121,25 @@ fun TrashScreen(onBack: () -> Unit) {
                         TrashCard(
                             item = item,
                             onRestore = {
-                                scope.launch(Dispatchers.IO) {
-                                    CodeCompletion.restore(context, db.repository, item.id)
+                                scope.launch {
+                                    runCatching {
+                                        withContext(Dispatchers.IO) { CodeCompletion.restore(context, db.repository, item.id) }
+                                    }.onSuccess {
+                                        snackbar.showSnackbar("已恢复")
+                                    }.onFailure {
+                                        snackbar.showSnackbar("恢复失败，请重试")
+                                    }
                                 }
                             },
                             onDelete = {
-                                scope.launch(Dispatchers.IO) {
-                                    db.repository.deleteById(item.id)
+                                scope.launch {
+                                    runCatching {
+                                        withContext(Dispatchers.IO) { db.repository.deleteById(item.id) }
+                                    }.onSuccess {
+                                        snackbar.showSnackbar("已永久删除")
+                                    }.onFailure {
+                                        snackbar.showSnackbar("删除失败，请重试")
+                                    }
                                 }
                             }
                         )
@@ -128,6 +156,7 @@ private fun TrashCard(
     onRestore: () -> Unit,
     onDelete: () -> Unit
 ) {
+    var showDeleteConfirmation by remember(item.id) { mutableStateOf(false) }
     // H8: 组合期只算一次会导致倒计时/进度条冻结；用 tick 每分钟刷新
     var tick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -178,12 +207,46 @@ private fun TrashCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
-                TextButton(onClick = onRestore) { Text("恢复") }
-                TextButton(onClick = onDelete) {
+                MiuixButton(
+                    onClick = onRestore,
+                    minHeight = 48.dp,
+                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                    colors = MiuixButtonColors(
+                        color = MiuixTheme.colorScheme.primary,
+                        disabledColor = MiuixTheme.colorScheme.secondaryVariant,
+                        contentColor = MiuixTheme.colorScheme.onPrimary,
+                        disabledContentColor = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    ),
+                ) {
+                    Icon(MiuixIcons.Undo, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("恢复")
+                }
+                TextButton(onClick = { showDeleteConfirmation = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Icon(MiuixIcons.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.width(6.dp))
                     Text("删除", color = MaterialTheme.colorScheme.error)
                 }
             }
         }
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("永久删除这条记录？") },
+            text = { Text("删除后无法恢复。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDelete()
+                    },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) { Text("永久删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteConfirmation = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("取消") } },
+        )
     }
 }
 

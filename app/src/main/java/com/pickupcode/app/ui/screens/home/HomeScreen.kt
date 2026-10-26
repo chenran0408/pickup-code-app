@@ -19,8 +19,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Share
+import top.yukonga.miuix.kmp.icon.extended.Filter
+import top.yukonga.miuix.kmp.icon.extended.Sort
+import top.yukonga.miuix.kmp.icon.basic.Close
+import top.yukonga.miuix.kmp.icon.extended.Settings
 import com.pickupcode.app.ui.miuix.Button
 import com.pickupcode.app.ui.miuix.Card
 import androidx.compose.material3.CardDefaults
@@ -47,8 +51,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import com.pickupcode.app.ui.miuix.*
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Share
+import com.pickupcode.app.ui.theme.UiSpacing
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -72,7 +75,9 @@ import android.content.ActivityNotFoundException
 import androidx.compose.ui.unit.sp
 import com.pickupcode.app.R
 import com.pickupcode.app.ui.components.IconText
+import com.pickupcode.app.ui.components.PickupIdentityCard
 import top.yukonga.miuix.kmp.basic.FloatingActionButtonDefaults
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.icon.extended.Add
 import com.pickupcode.app.data.AppDatabase
 import com.pickupcode.app.data.CodeHistory
@@ -98,10 +103,11 @@ fun HomeScreen(
     onEnableAccessibility: () -> Unit,
     onHideAccessibilityCard: () -> Unit,
     onHideGuideCard: () -> Unit,
-    onOpenDrawer: () -> Unit,
+    onSettingsClick: () -> Unit,
+    onIdentityClick: () -> Unit,
     onItemClick: (Long) -> Unit,
     onFabClick: () -> Unit,
-    bottomNavigationBar: @Composable () -> Unit = {}
+    bottomNavigationBar: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     val db = remember { AppDatabase.getInstance(context) }
@@ -144,9 +150,7 @@ fun HomeScreen(
             scope.launch { snackbarHostState.showSnackbar("没有可用的分享应用") }
         }
     }
-    var statusMenu by remember { mutableStateOf(false) }
-    var groupingMenu by remember { mutableStateOf(false) }
-    var confirmGroup by remember { mutableStateOf<List<CodeHistory>?>(null) }
+    var filterMenu by remember { mutableStateOf(false) }
 
     val today = LocalDate.now()
     val todayStart = remember(today) { today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }
@@ -187,24 +191,19 @@ fun HomeScreen(
         )
     }
 
-    confirmGroup?.let { items ->
-        com.pickupcode.app.ui.miuix.AlertDialog(
-            onDismissRequest = { confirmGroup = null },
-            title = { Text("全部标记已取？") },
-            text = { Text("将 ${items.first().pickupAddress} 的 ${items.size} 条记录标记为已取，可撤销。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmGroup = null
-                    vm.markGroupDone(items, onSuccess = { batch ->
-                        scope.launch {
-                            val result = snackbarHostState.showSnackbar("已取 ${batch.items.size} 件", "撤销", duration = SnackbarDuration.Long)
-                            if (result == SnackbarResult.ActionPerformed) vm.undoDone(batch) { message -> scope.launch { snackbarHostState.showSnackbar(message) } }
-                        }
-                    }, onError = { message -> scope.launch { snackbarHostState.showSnackbar(message) } })
-                }) { Text("全部已取") }
-            },
-            dismissButton = { TextButton(onClick = { confirmGroup = null }) { Text("取消") } }
-        )
+    fun markGroupDone(items: List<CodeHistory>) {
+        vm.markGroupDone(items, onSuccess = { batch ->
+            scope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    "已标记 ${batch.items.size} 件",
+                    "撤销",
+                    duration = SnackbarDuration.Long,
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    vm.undoDone(batch) { message -> scope.launch { snackbarHostState.showSnackbar(message) } }
+                }
+            }
+        }, onError = { message -> scope.launch { snackbarHostState.showSnackbar(message) } })
     }
 
 
@@ -212,15 +211,17 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = "码上闪记",
-                navigationIcon = { IconButton(onClick = onOpenDrawer) { Icon(Icons.Default.Menu, "打开侧边栏") } },
                 actions = {
                     // 右上角三个辅助动作图标：2026-09-18 用户指定换成附件里的线性图标（Lucide 风格），
                     // 统一用 onSurface 上色（比默认的 onSurfaceVariant 更深）+ 20dp（用户反馈 24dp 偏大）
                     // + 同一个 IconButton 热区。
                     val actionTint = MaterialTheme.colorScheme.onSurface
                     val iconModifier = Modifier.size(20.dp)
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(MiuixIcons.Settings, "设置", modifier = iconModifier, tint = actionTint)
+                    }
                     IconButton(onClick = ::sharePending) {
-                        Icon(Icons.Default.Share, contentDescription = "分享当前未取码", modifier = iconModifier,
+                        Icon(MiuixIcons.Share, contentDescription = "分享当前未取码", modifier = iconModifier,
                             tint = actionTint)
                     }
 
@@ -252,110 +253,121 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
-                contentPadding = PaddingValues(bottom = FloatingActionButtonDefaults.MinHeight + 16.dp)
+                contentPadding = PaddingValues(bottom = FloatingActionButtonDefaults.MinHeight + UiSpacing.page)
             ) {
-            item(key = "filters", contentType = "controls") {
-                FilterChipRow(currentFilter = typeFilter, onFilterChange = { typeFilter = it })
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box {
-                        TextButton(onClick = { statusMenu = true }, modifier = Modifier.heightIn(min = 48.dp)) {
-                            Text((if (completedOnly) "已取 ${completedHistory.size}" else if (expiredOnly) "过期记录" else "全部记录") + " ▾")
+            item(key = "identity_shortcuts", contentType = "identity_shortcuts") {
+                Column(Modifier.fillMaxWidth().padding(top = UiSpacing.compact)) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = UiSpacing.page),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("取件身份码", style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        TextButton(onClick = onIdentityClick, modifier = Modifier.heightIn(min = 48.dp)) {
+                            Text("全部身份码  ›", color = MaterialTheme.colorScheme.primary)
                         }
-                        DropdownMenu(expanded = statusMenu, onDismissRequest = { statusMenu = false }) {
-                            DropdownMenuItem(text = { Text("全部记录") }, onClick = { completedOnly = false; expiredOnly = false; statusMenu = false })
-                            DropdownMenuItem(text = { Text("已取 ${completedHistory.size}") }, onClick = { completedOnly = true; expiredOnly = false; statusMenu = false })
-                            DropdownMenuItem(text = { Text("过期记录") }, onClick = { completedOnly = false; expiredOnly = true; statusMenu = false })
+                    }
+                    PickupIdentityCard(compact = true)
+                }
+            }
+            item(key = "filters", contentType = "controls") {
+                Row(Modifier.fillMaxWidth().padding(horizontal = UiSpacing.page, vertical = UiSpacing.compact), horizontalArrangement = Arrangement.spacedBy(UiSpacing.item)) {
+                    Box {
+                        val filterLabel = when {
+                            completedOnly -> "已取 ${completedHistory.size}"
+                            expiredOnly -> "过期记录"
+                            typeFilter == "food" -> "取餐码"
+                            typeFilter == "parcel" -> "取件码"
+                            typeFilter == "coupon" -> "券码"
+                            else -> "全部"
+                        }
+                        TextButton(onClick = { filterMenu = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+                            Icon(MiuixIcons.Filter, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("$filterLabel ▾", color = if (typeFilter != "all" || completedOnly || expiredOnly)
+                                MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                        }
+                        DropdownMenu(expanded = filterMenu, onDismissRequest = { filterMenu = false }) {
+                            listOf("all" to "全部", "parcel" to "取件码", "food" to "取餐码", "coupon" to "券码")
+                                .forEach { (key, label) ->
+                                    DropdownMenuItem(text = { Text(if (typeFilter == key && !completedOnly && !expiredOnly) "✓  $label" else label) },
+                                        onClick = { typeFilter = key; completedOnly = false; expiredOnly = false; filterMenu = false })
+                                }
+                            HorizontalDivider()
+                            DropdownMenuItem(text = { Text(if (completedOnly) "✓  已取 ${completedHistory.size}" else "已取 ${completedHistory.size}") },
+                                onClick = { completedOnly = true; expiredOnly = false; filterMenu = false })
+                            DropdownMenuItem(text = { Text(if (expiredOnly) "✓  过期记录" else "过期记录") },
+                                onClick = { completedOnly = false; expiredOnly = true; filterMenu = false })
+                            if (typeFilter != "all" || completedOnly || expiredOnly) {
+                                HorizontalDivider()
+                                DropdownMenuItem(text = { Text("清除筛选") }, onClick = {
+                                    typeFilter = "all"; completedOnly = false; expiredOnly = false; filterMenu = false
+                                })
+                            }
                         }
                     }
                     Spacer(Modifier.weight(1f))
-                    Box {
-                        TextButton(onClick = { groupingMenu = true }, modifier = Modifier.heightIn(min = 48.dp)) {
-                            Text((if (groupMode == "address") "按地址" else "按时间") + " ▾")
-                        }
-                        DropdownMenu(expanded = groupingMenu, onDismissRequest = { groupingMenu = false }) {
-                            DropdownMenuItem(text = { Text("按地址") }, onClick = { groupMode = "address"; groupingMenu = false })
-                            DropdownMenuItem(text = { Text("按时间") }, onClick = { groupMode = "time"; groupingMenu = false })
-                        }
-                    }
-                }
-            }
-
-            // 通知权限
-            if (!hasNotificationPermission) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                        shape = MaterialTheme.shapes.medium
+                    TextButton(
+                        onClick = { groupMode = if (groupMode == "address") "time" else "address" },
+                        modifier = Modifier.heightIn(min = 48.dp).semantics {
+                            contentDescription = if (groupMode == "address") "当前按地址分组，切换为按时间" else "当前按时间分组，切换为按地址"
+                        },
                     ) {
-                        Column(Modifier.padding(12.dp)) {
-                            IconText(R.drawable.ic_bell, "需要通知权限",
-                                style = MaterialTheme.typography.titleSmall)
-                            Spacer(Modifier.height(4.dp))
-                            Text("开启后才能在锁屏/通知栏显示取餐取件码",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.height(8.dp))
-                            Button(onClick = onRequestNotificationPermission) { Text("授权") }
-                        }
+                        Icon(MiuixIcons.Sort, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (groupMode == "address") "按地址" else "按时间")
                     }
                 }
             }
 
-            // 无障碍服务卡片
-            if (!hideAccessibilityCard) {
-                item {
-                    // 三态：开启且运行 / 设置里开了但服务未运行（被系统杀，vivo 常见）/ 未开启
+            // Setup items share one status surface so permission notices do not stack as separate cards.
+            if (!hasNotificationPermission || !hideAccessibilityCard) {
+                item(key = "setup_status") {
+                    val needsAccessibilityRestart = accessibilityEnabledInSettings && !isAccessibilityEnabled
                     val containerColor = when {
+                        !hasNotificationPermission || needsAccessibilityRestart -> MaterialTheme.colorScheme.errorContainer
                         isAccessibilityEnabled -> MaterialTheme.colorScheme.primaryContainer
-                        accessibilityEnabledInSettings -> MaterialTheme.colorScheme.errorContainer
                         else -> MaterialTheme.colorScheme.tertiaryContainer
                     }
-                    val titleIcon = when {
-                        isAccessibilityEnabled -> R.drawable.ic_circle_check
-                        accessibilityEnabledInSettings -> R.drawable.ic_triangle_alert
-                        else -> R.drawable.ic_wrench
-                    }
-                    val title = when {
-                        isAccessibilityEnabled -> "无障碍服务已开启"
-                        accessibilityEnabledInSettings -> "无障碍服务未在运行"
-                        else -> "需要开启无障碍服务"
-                    }
-
                     Card(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = UiSpacing.page, vertical = UiSpacing.compact),
                         colors = CardDefaults.cardColors(containerColor = containerColor),
-                        shape = MaterialTheme.shapes.medium
                     ) {
-                        Column(Modifier.padding(12.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconText(titleIcon, title,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    modifier = Modifier.weight(1f))
-                                IconButton(onClick = onHideAccessibilityCard, modifier = Modifier.size(48.dp)) {
-                                    Icon(Icons.Default.Close, contentDescription = "隐藏",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (!hasNotificationPermission) {
+                                IconText(R.drawable.ic_bell, "需要通知权限", style = MaterialTheme.typography.titleSmall)
+                                Text("开启后才能在锁屏和通知栏看到取件码。", style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Button(onClick = onRequestNotificationPermission, modifier = Modifier.heightIn(min = 48.dp)) {
+                                    Text("授权通知")
                                 }
                             }
-                            if (isAccessibilityEnabled) {
-                                Text("打开控制面板 → 点右上角编辑 → 找到「码上闪记」→ 拖到面板",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Spacer(Modifier.height(4.dp))
-                                Text("点磁贴后滑出控制面板，在取件码界面稍候，自动识别并通知结果",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Medium)
-                            } else {
-                                Text(
-                                    if (accessibilityEnabledInSettings)
-                                        "系统设置里已开启，但服务实际未在运行——大概率被系统省电策略关闭了。点下方按钮到设置页把「码上闪记」关掉再打开一次。"
-                                    else "开启后点快捷设置磁贴即可自动识别屏幕上的取餐码/取件码",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                Button(onClick = onEnableAccessibility) { Text(if (accessibilityEnabledInSettings) "去重新开启" else "去开启") }
+                            if (!hideAccessibilityCard) {
+                                if (!hasNotificationPermission) HorizontalDivider()
+                                val title = when {
+                                    isAccessibilityEnabled -> "自动识别已开启"
+                                    needsAccessibilityRestart -> "自动识别服务未在运行"
+                                    else -> "开启屏幕自动识别"
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                                    IconButton(onClick = onHideAccessibilityCard, modifier = Modifier.size(48.dp)) {
+                                        Icon(MiuixIcons.Basic.Close, contentDescription = "隐藏自动识别提示",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                                if (isAccessibilityEnabled) {
+                                    Text("点快捷设置里的码上闪记磁贴，即可识别当前屏幕。",
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                } else {
+                                    Text(if (needsAccessibilityRestart)
+                                        "系统设置显示已开启，但服务未运行。重新关闭并开启码上闪记服务。"
+                                    else "开启后可从快捷设置磁贴识别屏幕上的取餐码和取件码。",
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Button(onClick = onEnableAccessibility, modifier = Modifier.heightIn(min = 48.dp)) {
+                                        Text(if (needsAccessibilityRestart) "重新开启" else "去开启")
+                                    }
+                                }
                             }
                         }
                     }
@@ -365,32 +377,33 @@ fun HomeScreen(
             // 空状态
             if (filteredHistory.isEmpty()) {
                 item {
-                    if (typeFilter != "all") {
-                        // 筛选后空状态：提示 + 清除筛选
+                    val filtersActive = typeFilter != "all" || completedOnly || expiredOnly
+                    if (filtersActive) {
                         Box(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 16.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("没有符合筛选条件的记录",
+                                Text("当前条件下没有记录",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Spacer(Modifier.height(12.dp))
+                                Spacer(Modifier.height(8.dp))
                                 TextButton(onClick = {
                                     typeFilter = "all"
+                                    completedOnly = false
+                                    expiredOnly = false
                                 }) {
-                                    Text("清除筛选条件")
+                                    Text("清除筛选")
                                 }
                             }
                         }
                     } else {
-                        // 无记录占位
                         Box(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 16.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(if (completedOnly) "暂无已取记录" else if (expiredOnly) "暂无过期记录" else "暂无记录",
-                                style = MaterialTheme.typography.bodyMedium,
+                            Text("还没有取件码",
+                                style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -402,14 +415,27 @@ fun HomeScreen(
                 addressGroups.forEach { (addr, groupItems) ->
                     item(key = "addr_header_$addr", contentType = "group_header") {
                         AddressGroupHeader(address = addr.ifBlank { "未填地址" }, count = groupItems.size,
-                            onDoneAll = if (!completedOnly && addr.isNotBlank() && groupItems.any { it.isActive }) ({ confirmGroup = groupItems.filter { it.isActive } }) else null)
+                        onDoneAll = if (!completedOnly && addr.isNotBlank() && groupItems.any { it.isActive }) ({ markGroupDone(groupItems.filter { it.isActive }) }) else null)
                     }
                     items(groupItems, key = { it.id }, contentType = { "record" }) { cardItem ->
                         CodeHistoryCard(
                             item = cardItem, now = now, onCopy = { copyCode(cardItem) },
                             onClick = { onItemClick(cardItem.id) },
                             onDone = { if (cardItem.isActive) markAsDone(cardItem) else vm.restoreCompleted(cardItem) { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } } },
-                            onDelete = { vm.delete(cardItem) { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } } }
+                            onDelete = {
+                                vm.delete(
+                                    cardItem,
+                                    onError = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+                                    onSuccess = {
+                                        scope.launch {
+                                            val result = snackbarHostState.showSnackbar("已移至回收站", "撤销", duration = SnackbarDuration.Long)
+                                            if (result == SnackbarResult.ActionPerformed) {
+                                                vm.restoreCompleted(cardItem) { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } }
+                                            }
+                                        }
+                                    },
+                                )
+                            }
                         )
                     }
                 }
@@ -424,13 +450,26 @@ fun HomeScreen(
                             item = item, now = now, onCopy = { copyCode(item) },
                             onClick = { onItemClick(item.id) },
                             onDone = { if (item.isActive) markAsDone(item) else vm.restoreCompleted(item) { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } } },
-                            onDelete = { vm.delete(item) { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } } }
+                            onDelete = {
+                                vm.delete(
+                                    item,
+                                    onError = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+                                    onSuccess = {
+                                        scope.launch {
+                                            val result = snackbarHostState.showSnackbar("已移至回收站", "撤销", duration = SnackbarDuration.Long)
+                                            if (result == SnackbarResult.ActionPerformed) {
+                                                vm.restoreCompleted(item) { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } }
+                                            }
+                                        }
+                                    },
+                                )
+                            }
                         )
                     }
                 }
             }
             // 引导卡片（可折叠）
-            if (!hideGuideCard) {
+            if (!hideGuideCard && filteredHistory.isEmpty()) {
                 item {
                     Column(
                         modifier = Modifier
@@ -460,7 +499,7 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text("·点「添加码」手动录入", style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("·通过无障碍服务调用OCR识别", style = MaterialTheme.typography.bodySmall,
+                                Text("·开启屏幕识别后，可从快捷设置识别当前页面", style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Spacer(Modifier.height(10.dp))
                                 Button(

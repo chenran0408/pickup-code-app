@@ -1,5 +1,7 @@
 package com.pickupcode.app.ui.screens
 
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+
 import com.pickupcode.app.ui.components.IconText
 import com.pickupcode.app.R
 import android.content.Context
@@ -14,7 +16,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import com.pickupcode.app.ui.miuix.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import com.pickupcode.app.ui.miuix.Text
 import androidx.compose.runtime.Composable

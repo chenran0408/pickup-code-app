@@ -15,7 +15,6 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.foundation.shape.RoundedCornerShape
 
 /** Existing dialog call sites mapped to Miuix's native overlay dialog. */
 @Composable
@@ -104,32 +103,6 @@ fun DropdownMenuItem(
         leadingIcon?.invoke()
         Box(Modifier.weight(1f).padding(horizontal = 8.dp)) { text() }
         trailingIcon?.invoke()
-    }
-}
-
-/** Miuix has no Drawer; retain Material3's gesture container and draw its sheet with Miuix. */
-@Composable
-fun ModalDrawerSheet(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    val width = minOf(if (LocalDensity.current.fontScale >= 1.3f) 360.dp else 320.dp,
-        (LocalConfiguration.current.screenWidthDp.dp - 24.dp).coerceAtLeast(1.dp))
-    Surface(modifier.width(width).fillMaxHeight(), shape = RoundedCornerShape(24.dp),
-        color = MiuixTheme.colorScheme.background) {
-        Column(Modifier.statusBarsPadding().navigationBarsPadding(), content = content)
-    }
-}
-
-@Composable
-fun NavigationDrawerItem(
-    label: @Composable () -> Unit,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Button(onClick, modifier.fillMaxWidth().padding(vertical = 2.dp), colors = ButtonDefaults.buttonColors(
-        containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-    )) {
-        Box(Modifier.fillMaxWidth()) { label() }
     }
 }
 

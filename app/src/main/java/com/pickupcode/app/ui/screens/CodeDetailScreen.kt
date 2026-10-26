@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.basic.Card as MiuixCard
+import top.yukonga.miuix.kmp.basic.CardDefaults as MiuixCardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CardDefaults
@@ -104,7 +107,7 @@ fun CodeDetailScreen(
             TopAppBar(
                 title = "详情",
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+                    IconButton(onClick = onBack) { Icon(MiuixIcons.Back, "返回") }
                 },
                 // 身份码跳转：三家分开、各带 logo（用户要求放在标题栏右侧）
                 actions = { TextButton(onClick = onIdentityCodeClick) { Text("取件身份码") } }
@@ -116,32 +119,12 @@ fun CodeDetailScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            com.pickupcode.app.ui.components.RecordStatusBadge(item)
-            com.pickupcode.app.ui.components.PickupIdentityCard()
-            if (item.recognitionOrigin == "ai") {
-                Text("AI 补充识别 · 请核对码值", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall)
-            }
-            if (item.pickupAddress.isNotBlank()) {
-                val addressSource = when (item.addressOrigin) {
-                    "user" -> "人工填写"
-                    "saved" -> "常用地址匹配"
-                    "ai" -> "AI 补充，待核对"
-                    "verified" -> "物流验证补充"
-                    else -> "本地识别"
-                }
-                Text("地址来源：$addressSource", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (item.suggestedAddress.isNotBlank() && item.suggestedAddress != item.pickupAddress) {
-                Card {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("AI 提供了另一地址", style = MaterialTheme.typography.titleSmall)
-                        Text(item.suggestedAddress)
-                        TextButton(onClick = { onUpdateField(EditField.ADDRESS, item.suggestedAddress) }) { Text("确认使用此地址") }
-                    }
-                }
-            }
+            MiuixCard(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 20.dp,
+                colors = MiuixCardDefaults.defaultColors(color = MaterialTheme.colorScheme.surface),
+            ) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             // 2026-09-15 用户要求：删掉「类型」卡片（码值类型在主页列表已有筛选/徽标体现，详情页里冗余）
             EditableField(label = "码值", value = item.code, displayFontSize = 28.sp, displayFontWeight = FontWeight.Bold,
                 onSave = { newCode ->
@@ -173,6 +156,8 @@ fun CodeDetailScreen(
                     }
                 )
             }
+
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
             EditableField(label = "来源", value = item.source, displayFontSize = 18.sp,
                 onSave = { onUpdateField(EditField.SOURCE, it) },
@@ -219,6 +204,8 @@ fun CodeDetailScreen(
                     }
                 )
             }
+
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
             if (item.cabinetNumber.isNotBlank()) {
                 EditableField(label = "柜号", value = item.cabinetNumber, displayFontSize = 16.sp,
@@ -304,6 +291,35 @@ fun CodeDetailScreen(
                     )
                 }
             }
+                }
+            }
+
+            com.pickupcode.app.ui.components.RecordStatusBadge(item)
+            if (item.recognitionOrigin == "ai") {
+                Text("AI 补充识别 · 请核对码值", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            if (item.pickupAddress.isNotBlank()) {
+                val addressSource = when (item.addressOrigin) {
+                    "user" -> "人工填写"
+                    "saved" -> "常用地址匹配"
+                    "ai" -> "AI 补充，待核对"
+                    "verified" -> "物流验证补充"
+                    else -> "本地识别"
+                }
+                Text("地址来源：$addressSource", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (item.suggestedAddress.isNotBlank() && item.suggestedAddress != item.pickupAddress) {
+                Card {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("AI 提供了另一地址", style = MaterialTheme.typography.titleSmall)
+                        Text(item.suggestedAddress)
+                        TextButton(onClick = { onUpdateField(EditField.ADDRESS, item.suggestedAddress) }) { Text("确认使用此地址") }
+                    }
+                }
+            }
+            com.pickupcode.app.ui.components.PickupIdentityCard()
 
             var showFullscreen by remember { mutableStateOf(false) }
             if (item.screenshotPath.isNotBlank() && File(item.screenshotPath).exists()) {
@@ -361,7 +377,7 @@ fun CodeDetailScreen(
 
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("OCR 原始文本", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("识别到的内容", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(4.dp))
                     Text(item.rawTextSnippet.ifBlank { "（无原始数据）" }, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 20.sp)
@@ -472,40 +488,32 @@ private fun EditableField(label: String, value: String, displayFontSize: android
     var editing by remember { mutableStateOf(false) }
     var editedValue by remember(value) { mutableStateOf(value) }
     val scope = rememberCoroutineScope()
-    // 卡片背景与主页一致（surfaceVariant 浅灰），配合 Sleek 极简风
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Row(
-            Modifier.padding(16.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 前置图标（如：来源行的品牌 logo），可空则不占位
-            if (leadingIcon != null) {
-                Box(Modifier.padding(end = 12.dp), contentAlignment = Alignment.Center) {
-                    leadingIcon()
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (leadingIcon != null) {
+            Box(Modifier.padding(end = 12.dp), contentAlignment = Alignment.Center) { leadingIcon() }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            if (editing) {
+                OutlinedTextField(editedValue, { editedValue = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { editing = false }) { Text("取消") }
+                    TextButton(onClick = { editing = false; scope.launch { onSave(editedValue) } }) { Text("保存") }
                 }
-            }
-            Column(Modifier.weight(1f)) {
-                Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(4.dp))
-                if (editing) {
-                    OutlinedTextField(editedValue, { editedValue = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { editing = false }) { Text("取消") }
-                        TextButton(onClick = { editing = false; scope.launch { onSave(editedValue) } }) { Text("保存") } }
-                } else {
-                    // H9: 深色模式下黑字不可读，改用 onSurface
-                    Text(value, fontSize = displayFontSize, fontWeight = displayFontWeight, color = MaterialTheme.colorScheme.onSurface)
-                    TextButton(
-                        onClick = { editing = true; editedValue = value },
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-                    ) { Text("编辑") }
-                }
-            }
-            // 右侧尾部动作（如：地址卡片的 📍 唤起导航），可空则只占左侧
-            if (trailingAction != null) {
-                trailingAction()
+            } else {
+                Text(value, fontSize = displayFontSize, fontWeight = displayFontWeight, color = MaterialTheme.colorScheme.onSurface)
+                TextButton(
+                    onClick = { editing = true; editedValue = value },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                ) { Text("编辑") }
             }
         }
+        if (trailingAction != null) trailingAction()
     }
 }
 

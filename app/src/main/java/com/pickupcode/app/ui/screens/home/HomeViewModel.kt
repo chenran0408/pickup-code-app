@@ -97,10 +97,11 @@ class HomeViewModel(private val repo: CodeRepository) : ViewModel() {
         }
     }
 
-    fun delete(item: CodeHistory, onError: (String) -> Unit) {
+    fun delete(item: CodeHistory, onError: (String) -> Unit, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             try {
                 kotlinx.coroutines.withContext(Dispatchers.IO) { repo.moveToTrash(item.id); cancelNotifications(item) }
+                onSuccess()
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) { onError("删除失败，请重试") }
         }

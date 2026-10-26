@@ -1,5 +1,7 @@
 package com.pickupcode.app.ui.screens
 
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.provider.Telephony
@@ -10,10 +12,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Close
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.basic.Close
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.pickupcode.app.ui.miuix.*
@@ -110,9 +112,9 @@ fun NotificationAppsScreen(onBack: () -> Unit, onRequestAccess: () -> Unit) {
     }
     Scaffold(topBar = {
         TopAppBar(title = "通知识别", navigationIcon = {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+            IconButton(onClick = onBack) { Icon(MiuixIcons.Back, "返回") }
         }, actions = {
-            IconButton(onClick = { refresh++ }, enabled = !loading) { Icon(Icons.Default.Refresh, "刷新应用列表") }
+            IconButton(onClick = { refresh++ }, enabled = !loading) { Icon(MiuixIcons.Refresh, "刷新应用列表") }
         })
     }) { padding ->
         // Scaffold 的 safeDrawing 已包含键盘区域，避免重复扣除高度。
@@ -120,15 +122,15 @@ fun NotificationAppsScreen(onBack: () -> Unit, onRequestAccess: () -> Unit) {
             item(key = "controls") {
                 OutlinedTextField(query, onValueChange = { query = it }, labelText = "搜索应用",
                     singleLine = true, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "清空搜索") } })
+                    trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(MiuixIcons.Basic.Close, "清空搜索") } })
                 FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selectedOnly, onClick = { selectedOnly = !selectedOnly }, label = { Text("已选 ${selected.size}") })
                     FilterChip(showSystem, onClick = { showSystem = !showSystem }, label = { Text("显示系统应用") })
                 }
-                Text("勾选应用，自动从新通知中提取取件码。验证码不会保存。", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                Text("选择应用后，应用会从新通知中识别取件码；登录验证码不会保存。", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(com.pickupcode.app.service.NotificationRecognitionStatus.description(selected.size, granted, connection),
+                Text(notificationStatusText(selected.size, granted, connection.connection),
                     Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall,
                     color = if (connection.connection == com.pickupcode.app.service.NotificationRecognitionStatus.Connection.FAILED)
                         MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -171,9 +173,12 @@ fun NotificationAppsScreen(onBack: () -> Unit, onRequestAccess: () -> Unit) {
                         }
                         Column(Modifier.weight(1f)) {
                             Text(app.label, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(when { !app.available -> "未安装或不可见，可取消选择"
-                                app.packageName == defaultSms -> "默认短信应用（含网络短信）"
-                                else -> app.packageName }, style = MaterialTheme.typography.bodySmall,
+                            Text(when {
+                                !app.available -> "当前不可用，可取消选择"
+                                app.packageName == defaultSms -> "默认短信应用"
+                                checked -> "已允许识别取件码"
+                                else -> "允许从此应用通知中识别取件码"
+                            }, style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                         // miuix 的勾选控件会消费点击，显式回调保证点圆圈与点整行都可保存。
@@ -183,4 +188,17 @@ fun NotificationAppsScreen(onBack: () -> Unit, onRequestAccess: () -> Unit) {
                 }
         }
     }
+}
+
+private fun notificationStatusText(
+    selectedCount: Int,
+    granted: Boolean,
+    connection: com.pickupcode.app.service.NotificationRecognitionStatus.Connection,
+): String = when {
+    selectedCount == 0 -> "还没有选择通知应用"
+    !granted -> "请开启通知访问权限"
+    connection == com.pickupcode.app.service.NotificationRecognitionStatus.Connection.CONNECTED -> "通知识别已连接"
+    connection == com.pickupcode.app.service.NotificationRecognitionStatus.Connection.CONNECTING -> "正在连接通知识别…"
+    connection == com.pickupcode.app.service.NotificationRecognitionStatus.Connection.FAILED -> "请在系统设置中允许应用在后台运行，然后重试"
+    else -> "等待通知识别连接"
 }

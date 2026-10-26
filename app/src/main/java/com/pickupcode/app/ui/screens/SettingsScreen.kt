@@ -11,11 +11,6 @@ import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.DrawableRes
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -25,14 +20,16 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import com.pickupcode.app.ui.miuix.*
+import com.pickupcode.app.ui.theme.UiSpacing
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.SliderPreference
@@ -41,6 +38,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -101,19 +99,26 @@ private data class SettingsCtx(
 }
 
 enum class SettingsPage(val title: String) {
-    RECOGNITION("识别偏好"), INPUT("识别方式与权限"), VERIFY("AI 与辅助识别"), APPEARANCE("主题与显示"), ABOUT("关于与反馈")
+    HOME("设置"), RECOGNITION_NOTIFICATIONS("识别与通知"), PICKUP_ASSIST("取件辅助"),
+    DISPLAY("显示与体验"), DATA("数据与记录"), ADVANCED("高级功能"), ABOUT("关于"),
+    // 保留旧状态名，避免系统从旧版保存状态恢复时 valueOf 失败。
+    RECOGNITION("识别"), INPUT("通知与识别方式"), VERIFY("辅助服务"), APPEARANCE("显示")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    page: SettingsPage = SettingsPage.RECOGNITION,
+    page: SettingsPage = SettingsPage.HOME,
     onBack: () -> Unit,
+    onNavigatePage: (SettingsPage) -> Unit = {},
     onStatsClick: () -> Unit = {},
     onSavedAddressClick: () -> Unit = {},
     onRulesClick: () -> Unit = {},
     onNotificationAppsClick: () -> Unit = {},
-    bottomNavigationBar: @Composable () -> Unit = {},
+    onDedupClick: () -> Unit = {},
+    onTrashClick: () -> Unit = {},
+    onIdentityClick: () -> Unit = {},
+    bottomNavigationBar: (@Composable () -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
     // 进程级 scope：防抖落盘/权限回调等 fire-and-forget 写不随页面销毁取消（否则 400ms 内返回会丢 Key/URL）
@@ -183,38 +188,101 @@ fun SettingsScreen(
 
     top.yukonga.miuix.kmp.basic.Scaffold(
         containerColor = MiuixTheme.colorScheme.background,
-        bottomBar = bottomNavigationBar,
+        bottomBar = { if (page == SettingsPage.HOME) bottomNavigationBar?.invoke() },
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
                 title = page.title,
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+                    IconButton(onClick = onBack) { Icon(MiuixIcons.Back, "返回") }
                 },
             )
         }
     ) { pad ->
-        // 侧边栏按功能进入，各页只组合需要的设置卡片。
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(pad)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(UiSpacing.page),
+            verticalArrangement = Arrangement.spacedBy(UiSpacing.section)
         ) {
             when (page) {
-                SettingsPage.RECOGNITION -> { RecognitionSettingsSection(sc); RulesSection(onRulesClick) }
+                SettingsPage.HOME -> SettingsHome(onNavigate = onNavigatePage)
+                SettingsPage.RECOGNITION_NOTIFICATIONS, SettingsPage.RECOGNITION -> {
+                    RecognitionSettingsSection(sc)
+                    InputMethodsSection(sc, onNotificationAppsClick)
+                    NotificationStatusCard(sc)
+                    RulesSection(onRulesClick)
+                }
+                SettingsPage.PICKUP_ASSIST -> {
+                    SavedAddressSection(onSavedAddressClick)
+                    SettingsLinkRow("身份码平台", "打开淘宝、菜鸟或拼多多身份码", onIdentityClick)
+                }
+                SettingsPage.DISPLAY, SettingsPage.APPEARANCE -> AppearanceSection(sc)
+                SettingsPage.DATA -> {
+                    LearningStatsSection(sc, onStatsClick)
+                    SettingsLinkRow("重复记录整理", "整理重复的取件记录", onDedupClick)
+                    SettingsLinkRow("回收站", "查看、恢复或清理已删除的记录", onTrashClick)
+                }
+                SettingsPage.ADVANCED, SettingsPage.VERIFY -> VerifyServicesSection(sc)
+                SettingsPage.ABOUT -> { RecognitionFeedbackSection(); AboutSection(sc) }
                 SettingsPage.INPUT -> { InputMethodsSection(sc, onNotificationAppsClick); NotificationStatusCard(sc) }
-                SettingsPage.VERIFY -> { VerifyServicesSection(sc); SavedAddressSection(onSavedAddressClick) }
-                SettingsPage.APPEARANCE -> AppearanceSection(sc)
-                SettingsPage.ABOUT -> { LearningStatsSection(sc, onStatsClick); RecognitionFeedbackSection(); AboutSection(sc) }
             }
         }
     }
 }
 
-/* ═══════════════════ 公共组件（视觉重构：分组卡片化） ═══════════════════ */
+@Composable
+private fun SettingsHome(onNavigate: (SettingsPage) -> Unit) {
+    Text("管理识别方式、取件辅助和应用偏好", style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        SettingsCategoryRow("识别与通知", "自动识别、通知来源和识别规则") { onNavigate(SettingsPage.RECOGNITION_NOTIFICATIONS) }
+        SettingsCategoryRow("取件辅助", "常用地址和身份码平台") { onNavigate(SettingsPage.PICKUP_ASSIST) }
+        SettingsCategoryRow("显示与体验", "主题和文字大小") { onNavigate(SettingsPage.DISPLAY) }
+        SettingsCategoryRow("数据与记录", "统计、重复整理和回收站") { onNavigate(SettingsPage.DATA) }
+        SettingsCategoryRow("高级功能", "可选的联网辅助服务") { onNavigate(SettingsPage.ADVANCED) }
+        SettingsCategoryRow("关于", "版本、隐私说明和应用信息") { onNavigate(SettingsPage.ABOUT) }
+    }
+}
+
+@Composable
+private fun SettingsCategoryRow(title: String, summary: String, onClick: () -> Unit) {
+    Column {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 72.dp)
+                .clickable(role = Role.Button, onClick = onClick)
+                .padding(horizontal = UiSpacing.compact, vertical = UiSpacing.item),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    }
+}
+
+@Composable
+private fun SettingsLinkRow(title: String, summary: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 68.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = UiSpacing.compact, vertical = UiSpacing.item),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/* ═══════════════════ 设置分组：系统设置式标题 + 原生 Preference 行 ═══════════════════ */
 
 @Composable
 private fun SettingsSectionCard(
@@ -222,50 +290,14 @@ private fun SettingsSectionCard(
     subtitle: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    var expanded by remember { mutableStateOf(true) }
-    top.yukonga.miuix.kmp.basic.Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .animateContentSize(tween(180)), // 高度补间（tween 无回弹，比 spring 丝滑）
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // 标题行：点击收起/展开
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    if (expanded) "▾" else "▸",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 14.sp
-                )
-            }
-            // 高度交给外层 animateContentSize 补间（避免 expand/shrink 每帧重测复杂内容导致末段卡顿）；
-            // AnimatedVisibility 只做 alpha 淡入淡出（GPU 合成，开销小）
-            AnimatedVisibility(
-                visible = expanded,
-                enter = fadeIn(tween(180)),
-                exit = fadeOut(tween(180))
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (subtitle != null) {
-                        Text(subtitle, style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Spacer(Modifier.height(2.dp))
-                    content()
-                }
-            }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(UiSpacing.compact)) {
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = UiSpacing.compact, top = UiSpacing.item))
+        if (subtitle != null) {
+            Text(subtitle, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = UiSpacing.compact))
         }
+        content()
     }
 }
 
@@ -299,26 +331,9 @@ private fun SettingsSwitch(
 /* ═══════════════════ 各分组 Section ═══════════════════ */
 
 @Composable
-private fun SettingsSubHeader(text: String, @DrawableRes icon: Int? = null) {
-    if (icon != null) {
-        com.pickupcode.app.ui.components.IconText(
-            icon = icon,
-            text = text,
-            iconSize = 16.dp,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-    } else {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-    }
+private fun SettingsSubHeader(text: String, @DrawableRes @Suppress("UNUSED_PARAMETER") icon: Int? = null) {
+    Text(text, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = UiSpacing.compact, top = UiSpacing.item))
 }
 
 /** ① 识别设置：灵敏度 + 识别类型 */
@@ -544,11 +559,11 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
             onChange = sc.save { AppPreferences.setEnableMapVerify(sc.ctx, it) }
         )
         if (sc.s.enableMapVerify) {
-            Text("Android 地理编码器优先使用，无需配置。如需更高精度可填高德 API Key：",
+            Text("系统会优先使用本机定位信息。想提高地址准确度时，可填写高德地图服务密钥：",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             DebouncedKeyField(
-                value = sc.amapApiKey, label = "高德 API Key（可选）",
+                value = sc.amapApiKey, label = "高德地图服务密钥（可选）",
                 onCommit = { sc.saveRun { AppPreferences.setAmapApiKey(sc.ctx, it) } },
                 onChange = sc.onAmapApiKeyChange
             )
@@ -563,7 +578,7 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
         )
         if (sc.s.enableKuaidi100) {
             DebouncedKeyField(
-                value = sc.kuaidi100Key, label = "快递100 API Key",
+                value = sc.kuaidi100Key, label = "快递100查询密钥",
                 onCommit = { sc.saveRun { AppPreferences.setKuaidi100Key(sc.ctx, it) } },
                 onChange = sc.onKuaidi100KeyChange
             )
@@ -573,19 +588,19 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
         SettingsSwitch(
             "启用 AI 识别",
             sub = if (sc.s.enableAI) {
-                if (sc.s.apiKey.isNotBlank()) "已开启" else "未配置 API Key"
+                if (sc.s.apiKey.isNotBlank()) "已开启" else "需要填写服务密钥"
             } else "已关闭",
             checked = sc.s.enableAI,
             onChange = sc.save { AppPreferences.setEnableAI(sc.ctx, it) }
         )
         if (sc.s.enableAI) {
             DebouncedKeyField(
-                value = sc.apiUrl, label = "API 地址",
+                value = sc.apiUrl, label = "AI 服务地址",
                 onCommit = { sc.saveRun { AppPreferences.setApiBaseUrl(sc.ctx, it) } },
                 onChange = sc.onApiUrlChange
             )
             DebouncedKeyField(
-                value = sc.apiKey, label = "API Key", isPassword = true,
+                value = sc.apiKey, label = "AI 服务密钥", isPassword = true,
                 onCommit = { sc.saveRun { AppPreferences.setApiKey(sc.ctx, it) } },
                 onChange = sc.onApiKeyChange
             )
@@ -595,16 +610,15 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
                 onChange = sc.onApiModelChange
             )
             SettingsSwitch(
-                "AI 读取图片",
-                sub = if (sc.s.enableAiImage) "已开启：整张截图压缩后发给 AI（直接读图，能读出地址）"
-                else "已关闭：只把本地 OCR 文本发给 AI",
+                "让 AI 识别图片",
+                sub = if (sc.s.enableAiImage) "已开启：截图会发送到你配置的 AI 服务，可能包含姓名或电话"
+                else "已关闭：只发送已识别出的文字",
                 checked = sc.s.enableAiImage,
                 onChange = sc.save { AppPreferences.setEnableAiImage(sc.ctx, it) }
             )
             if (sc.s.enableAiImage) {
                 Text(
-                    "注意：开启后整张截图会上传到 AI 服务（屏幕上出现的手机号/姓名也会一并上传）。" +
-                        "模型需支持视觉（如 deepseek-flash）；deepseek-v4-pro 不支持图片，会自动回退为文本识别。",
+                    "开启后，整张截图会发送到你配置的 AI 服务，可能包含姓名、电话等个人信息。请确认你信任该服务。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error
                 )
@@ -614,8 +628,8 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
             // 而字段又只在开关打开时才显示 → 看起来"配置好了却没作用"。这里给出明确提示。
             Text(
                 if (sc.s.apiKey.isNotBlank())
-                    "已保存 API Key，但上面的开关是关的 —— 识别流程不会调用 AI。要生效请先打开它。"
-                else "AI 识别处于关闭状态。填好 API 地址/Key/模型后，记得打开上面的开关。",
+                    "已填写 AI 服务密钥，但上方开关已关闭。打开后才会使用智能识别。"
+                else "智能识别已关闭。填写服务地址、密钥和模型名称后，再打开上方开关。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error
             )
@@ -626,15 +640,12 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
         // 于是"配好了却没作用"很难判断。这里直接用当前 URL/Key/模型发一次最小请求，
         // 把 HTTP 状态码、错误正文、耗时、**实际请求地址**都显示出来。
         Text(
-            "AI 只做补充：正则已识别到的码不会重复入库，所以界面可能看不出变化。" +
-                "想确认配置是否生效，用下面这个按钮；也可拿一张「正则识别不出码」的截图去分享验证。",
+            "AI 用来补充常规识别没有找到的取件码，不会重复添加已找到的记录。你可以用下方按钮检查连接。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            "DeepSeek 示例：地址 https://api.deepseek.com（或 /v1），模型 deepseek-flash；" +
-                "注意旧文档里的 deepseek-chat / deepseek-reasoner 已停用，填了会返回 400（模型不存在）。" +
-                "本应用对 DeepSeek 会自动关闭思考模式以降低延迟。",
+            "请按 AI 服务提供商给出的地址、密钥和模型名称填写。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -645,11 +656,6 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
                 probeText = null
                 uiScope.launch {
                     val t = com.pickupcode.app.extractor.AIExtractor.probe(sc.apiKey, sc.apiUrl, sc.apiModel)
-                    val sb = StringBuilder()
-                    sb.append(
-                        if (t.ok) "文本通道：成功 · ${t.latencyMs}ms · 回复「${t.reply.ifBlank { "(空)" }}」"
-                        else "文本通道：失败（${com.pickupcode.app.extractor.AIExtractor.categorizeError(t.error)}）"
-                    )
                     var imgOk = true
                     if (sc.s.enableAiImage) {
                         val probeImg = com.pickupcode.app.util.ImageUtils.makeProbeImageBase64()
@@ -657,24 +663,17 @@ private fun VerifyServicesSection(sc: SettingsCtx) {
                             com.pickupcode.app.extractor.AIExtractor.probe(sc.apiKey, sc.apiUrl, sc.apiModel, imageBase64 = it)
                         }
                         imgOk = img?.ok == true
-                        sb.append("\n").append(
-                            when {
-                                img == null -> "图片通道：自检图生成失败"
-                                img.ok -> "图片通道：成功 · ${img.latencyMs}ms · 识别到「${img.reply.ifBlank { "(空)" }}」（应含 CP-1234）"
-                                else -> "图片通道：失败（${com.pickupcode.app.extractor.AIExtractor.categorizeError(img.error)}）"
-                            }
-                        )
                     }
-                    sb.append("\n请求地址：${t.endpoint}")
                     probing = false
                     probeOk = t.ok && imgOk
-                    probeText = sb.toString()
+                    probeText = if (probeOk) "连接正常，可以使用智能识别。" else
+                        "连接失败。请检查服务地址、密钥和模型名称后重试。"
                 }
             },
             modifier = Modifier.fillMaxWidth(),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-        ) { Text(if (probing) "测试中…（最多 40 秒）" else "测试 AI 连接") }
+        ) { Text(if (probing) "正在检查…" else "检查智能识别连接") }
         probeText?.let { msg ->
             Text(
                 msg,
@@ -713,7 +712,7 @@ private fun SavedAddressSection(onClick: () -> Unit) {
     SettingsSectionCard(title = "常用取件地址") {
         Column {
             Text(
-                "预存你常去的驿站/快递柜地址，识别时优先采用（用你录入的地址替换 OCR 原文）。",
+                "保存常去的驿站或快递柜，识别时优先显示你填写的地址。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -734,7 +733,7 @@ private fun SavedAddressSection(onClick: () -> Unit) {
 private fun AboutSection(sc: SettingsCtx) {    SettingsSectionCard(title = "关于") {
         Column {
             Text("码上闪记 v${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyLarge)
-            Text("基于 ML Kit OCR · 数据仅存储在本地",
+            Text("文字识别在设备上完成 · 取件记录保存在本机",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
@@ -795,6 +794,7 @@ private fun LearningStatsPanel(ctx: Context, scope: CoroutineScope) {
     var stats by remember { mutableStateOf<PatternLearner.PatternStats?>(null) }
     var addrStats by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var suggestions by remember { mutableStateOf<List<PatternLearner.PatternSuggestion>>(emptyList()) }
+    var confirmClear by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -812,16 +812,9 @@ private fun LearningStatsPanel(ctx: Context, scope: CoroutineScope) {
 
     val hitRate = if (s.attempts > 0) (s.attempts.toFloat() / s.totalScans * 100).roundToInt() else 0
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("扫描 ${s.totalScans} 次 · 命中 ${s.attempts} 次（${hitRate}%）· 漏检 ${s.misses} 次", style = MaterialTheme.typography.bodyMedium)
+        Text("检查 ${s.totalScans} 次 · 找到取件码 ${s.attempts} 次（${hitRate}%）· 未找到 ${s.misses} 次", style = MaterialTheme.typography.bodyMedium)
         if (s.verified > 0) {
             Text("已确认 ${s.verified} 次", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        if (s.perPattern.isNotEmpty()) {
-            Text("格式命中：", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            for ((p, n) in s.perPattern.entries.sortedByDescending { it.value }) {
-                Text("  $p : $n 次", style = MaterialTheme.typography.bodySmall)
-            }
         }
 
         val (addrOk, addrTotal) = addrStats ?: (0 to 0)
@@ -831,23 +824,35 @@ private fun LearningStatsPanel(ctx: Context, scope: CoroutineScope) {
         }
 
         if (suggestions.isNotEmpty()) {
-            Text("候选模式：", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Text("待改进的取件码格式：", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             for (sg in suggestions.take(3)) {
-                Text("  ${sg.label} — ${sg.count} 条未匹配", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                Text("  样例: ${sg.sampleCodes.joinToString("，")}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("  建议: ${sg.proposedRegex}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                Text("  ${sg.label} — 遇到 ${sg.count} 次", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                Text("  例如：${sg.sampleCodes.joinToString("，")}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
         TextButton(
-            onClick = {
-                scope.launch(Dispatchers.IO) {
-                    PatternLearner.clearUnmatched(ctx)
-                    suggestions = PatternLearner.getSuggestions(ctx)
-                }
-            },
+            onClick = { confirmClear = true },
             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
-        ) { Text("清除未匹配样本", style = MaterialTheme.typography.labelSmall) }
+        ) { Text("清除未识别内容", style = MaterialTheme.typography.labelSmall) }
+    }
+
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text("清除未识别内容？") },
+            text = { Text("这会删除尚未识别出的内容和相关学习记录，无法撤销。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClear = false
+                    scope.launch(Dispatchers.IO) {
+                        PatternLearner.clearUnmatched(ctx)
+                        suggestions = PatternLearner.getSuggestions(ctx)
+                    }
+                }) { Text("清除") }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("取消") } },
+        )
     }
 }
 
@@ -911,7 +916,7 @@ private fun AmapHelpSection() {
     var expanded by remember { mutableStateOf(false) }
     Column {
         TextButton(onClick = { expanded = !expanded }) {
-            Text(if (expanded) "收起说明 ▲" else "如何获取高德 API Key？▼", style = MaterialTheme.typography.labelMedium)
+            Text(if (expanded) "收起说明 ▲" else "如何获取高德地图服务密钥？▼", style = MaterialTheme.typography.labelMedium)
         }
         if (expanded) {
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), elevation = CardDefaults.cardElevation(0.dp)) {
@@ -935,7 +940,7 @@ private fun Kuaidi100HelpSection() {
     var expanded by remember { mutableStateOf(false) }
     Column {
         TextButton(onClick = { expanded = !expanded }) {
-            Text(if (expanded) "收起说明 ▲" else "如何获取快递100 API Key？▼", style = MaterialTheme.typography.labelMedium)
+            Text(if (expanded) "收起说明 ▲" else "如何获取快递100查询密钥？▼", style = MaterialTheme.typography.labelMedium)
         }
         if (expanded) {
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), elevation = CardDefaults.cardElevation(0.dp)) {
@@ -946,8 +951,8 @@ private fun Kuaidi100HelpSection() {
                     Text("3. 进入「企业管理 → 我的授权Key」", style = MaterialTheme.typography.bodySmall)
                     Text("4. 复制 Customer Key 粘贴到上方输入框", style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(4.dp))
-                    Text("用途：OCR 提取到单号后，通过API反向查取件码和地址作为标准答案", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("用于验证 OCR 提取结果是否正确，辅助自学习", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("识别出快递单号后，可查询对应取件码和地址，帮助检查识别是否准确。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("查询结果可帮助应用逐步改进识别效果。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -965,6 +970,6 @@ private suspend fun checkUpdate(): String = withContext(Dispatchers.IO) {
         if (resp.responseCode != 200) return@withContext "检查失败"
         val latest = org.json.JSONObject(resp.inputStream.bufferedReader().use { it.readText() }).getString("tag_name").removePrefix("v")
         if (latest == BuildConfig.VERSION_NAME) "当前已是最新版本" else "发现新版本 v$latest"
-    } catch (e: Exception) { "检查失败: ${e.message}" }
+    } catch (_: Exception) { "检查失败，请稍后重试" }
     finally { resp?.disconnect() }
 }

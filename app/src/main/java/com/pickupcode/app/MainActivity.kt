@@ -85,32 +85,38 @@ class MainActivity : ComponentActivity() {
             var currentScreen by rememberSaveable { mutableStateOf(Screen.Home.name) }
             var selectedCodeId by rememberSaveable { mutableLongStateOf(-1L) }
             var showManualDialog by rememberSaveable { mutableStateOf(false) }
-            var settingsPage by rememberSaveable { mutableStateOf(com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name) }
+            var settingsPage by rememberSaveable { mutableStateOf(com.pickupcode.app.ui.screens.SettingsPage.HOME.name) }
             var settingsChildBack by rememberSaveable { mutableStateOf(Screen.Home.name) }
             var screenBack by rememberSaveable { mutableStateOf(Screen.Home.name) }
-            val drawerState = androidx.compose.material3.rememberDrawerState(androidx.compose.material3.DrawerValue.Closed)
-            val uiScope = rememberCoroutineScope()
             val screen = Screen.valueOf(currentScreen)
 
             val settings by AppPreferences.observe(this)
                 .collectAsState(initial = AppPreferences.Settings())
 
-            BackHandler(enabled = screen != Screen.Home || drawerState.isOpen) {
-                when {
-                    drawerState.isOpen -> uiScope.launch { drawerState.close() }
-                    screen == Screen.Settings && settingsPage != com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name ->
-                        settingsPage = com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name
-                    else -> currentScreen = screenBack.takeIf { it != screen.name } ?: Screen.Home.name
+            LaunchedEffect(settingsPage) {
+                val migrated = when (settingsPage) {
+                    com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name -> com.pickupcode.app.ui.screens.SettingsPage.HOME.name
+                    com.pickupcode.app.ui.screens.SettingsPage.INPUT.name -> com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION_NOTIFICATIONS.name
+                    com.pickupcode.app.ui.screens.SettingsPage.VERIFY.name -> com.pickupcode.app.ui.screens.SettingsPage.ADVANCED.name
+                    com.pickupcode.app.ui.screens.SettingsPage.APPEARANCE.name -> com.pickupcode.app.ui.screens.SettingsPage.DISPLAY.name
+                    else -> settingsPage
                 }
+                if (migrated != settingsPage) settingsPage = migrated
+            }
+
+            BackHandler(enabled = screen != Screen.Home) {
+                if (screen == Screen.Settings) {
+                    if (settingsPage != com.pickupcode.app.ui.screens.SettingsPage.HOME.name) {
+                        settingsPage = com.pickupcode.app.ui.screens.SettingsPage.HOME.name
+                    } else currentScreen = Screen.Home.name
+                } else currentScreen = screenBack.takeIf { it != screen.name } ?: Screen.Home.name
             }
 
             @Composable
             fun AppRootNavigationBar() {
-                val destination = when (screen) {
-                    Screen.Home -> RootDestination.HOME
-                    Screen.IdentityCode -> RootDestination.IDENTITY_CODE
-                    Screen.Settings -> if (settingsPage == com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name)
-                        RootDestination.SETTINGS else null
+                val destination = when {
+                    screen == Screen.Home -> RootDestination.HOME
+                    screen == Screen.Settings && settingsPage == com.pickupcode.app.ui.screens.SettingsPage.HOME.name -> RootDestination.SETTINGS
                     else -> null
                 }
                 destination?.let { selected ->
@@ -118,9 +124,8 @@ class MainActivity : ComponentActivity() {
                         screenBack = Screen.Home.name
                         when (next) {
                             RootDestination.HOME -> currentScreen = Screen.Home.name
-                            RootDestination.IDENTITY_CODE -> currentScreen = Screen.IdentityCode.name
                             RootDestination.SETTINGS -> {
-                                settingsPage = com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name
+                                settingsPage = com.pickupcode.app.ui.screens.SettingsPage.HOME.name
                                 currentScreen = Screen.Settings.name
                             }
                         }
@@ -144,34 +149,6 @@ class MainActivity : ComponentActivity() {
                     contentWindowInsets = WindowInsets(0),
                 ) {
                 Box(Modifier.fillMaxSize()) {
-                androidx.compose.material3.ModalNavigationDrawer(drawerState = drawerState,
-                    gesturesEnabled = screen == Screen.Home, drawerContent = {
-                    com.pickupcode.app.ui.components.AppDrawerContent(onClose = { uiScope.launch { drawerState.close() } }) { key ->
-                        uiScope.launch {
-                            drawerState.close()
-                            settingsChildBack = Screen.Home.name
-                            when (key) {
-                                "notification_apps" -> { screenBack = Screen.Home.name; currentScreen = Screen.NotificationApps.name }
-                                "rules" -> { currentScreen = Screen.Rules.name }
-                                "addresses" -> { currentScreen = Screen.SavedAddress.name }
-                                "stats" -> { screenBack = Screen.Home.name; currentScreen = Screen.Stats.name }
-                                "dedup" -> { screenBack = Screen.Home.name; currentScreen = Screen.Dedup.name }
-                                "trash" -> { screenBack = Screen.Home.name; currentScreen = Screen.Trash.name }
-                                else -> {
-                                    settingsPage = when (key) {
-                                        "input" -> com.pickupcode.app.ui.screens.SettingsPage.INPUT.name
-                                        "verify" -> com.pickupcode.app.ui.screens.SettingsPage.VERIFY.name
-                                        "appearance" -> com.pickupcode.app.ui.screens.SettingsPage.APPEARANCE.name
-                                        "about" -> com.pickupcode.app.ui.screens.SettingsPage.ABOUT.name
-                                        else -> com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name
-                                    }
-                                    screenBack = Screen.Home.name
-                                    currentScreen = Screen.Settings.name
-                                }
-                            }
-                        }
-                    }
-                }) {
                 when (screen) {
                     Screen.Home -> HomeScreen(
                         hasNotificationPermission = hasNotificationPermission,
@@ -197,7 +174,11 @@ class MainActivity : ComponentActivity() {
                                 AppPreferences.setHideGuideCard(this@MainActivity, true)
                             }
                         },
-                        onOpenDrawer = { uiScope.launch { drawerState.open() } },
+                        onSettingsClick = {
+                            settingsPage = com.pickupcode.app.ui.screens.SettingsPage.HOME.name
+                            currentScreen = Screen.Settings.name
+                        },
+                        onIdentityClick = { screenBack = Screen.Home.name; currentScreen = Screen.IdentityCode.name },
                         onItemClick = { id ->
                             selectedCodeId = id
                             screenBack = Screen.Home.name
@@ -208,21 +189,28 @@ class MainActivity : ComponentActivity() {
                     )
                     Screen.Settings -> SettingsScreen(
                         page = com.pickupcode.app.ui.screens.SettingsPage.valueOf(settingsPage),
+                        onNavigatePage = { page -> settingsPage = page.name },
                         onBack = {
-                            if (settingsPage != com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name)
-                                settingsPage = com.pickupcode.app.ui.screens.SettingsPage.RECOGNITION.name
+                            if (settingsPage != com.pickupcode.app.ui.screens.SettingsPage.HOME.name)
+                                settingsPage = com.pickupcode.app.ui.screens.SettingsPage.HOME.name
                             else currentScreen = Screen.Home.name
                         },
                         onStatsClick = { screenBack = Screen.Settings.name; currentScreen = Screen.Stats.name },
                         onSavedAddressClick = { settingsChildBack = Screen.Settings.name; currentScreen = Screen.SavedAddress.name },
                         onRulesClick = { settingsChildBack = Screen.Settings.name; currentScreen = Screen.Rules.name },
                         onNotificationAppsClick = { screenBack = Screen.Settings.name; currentScreen = Screen.NotificationApps.name },
+                        onDedupClick = { screenBack = Screen.Settings.name; currentScreen = Screen.Dedup.name },
+                        onTrashClick = { screenBack = Screen.Settings.name; currentScreen = Screen.Trash.name },
+                        onIdentityClick = { screenBack = Screen.Settings.name; currentScreen = Screen.IdentityCode.name },
                         bottomNavigationBar = { AppRootNavigationBar() }
                     )
                     Screen.Detail -> DetailScreenWrapper(
                         codeId = selectedCodeId,
                         onBack = { currentScreen = screenBack },
-                        onIdentityCodeClick = { currentScreen = Screen.IdentityCode.name }
+                        onIdentityCodeClick = {
+                            screenBack = Screen.Detail.name
+                            currentScreen = Screen.IdentityCode.name
+                        }
                     )
                     Screen.Trash -> TrashScreen(
                         onBack = { currentScreen = screenBack }
@@ -237,8 +225,7 @@ class MainActivity : ComponentActivity() {
                         onBack = { currentScreen = settingsChildBack }
                     )
                     Screen.IdentityCode -> IdentityCodeScreen(
-                        onBack = { currentScreen = Screen.Home.name },
-                        bottomNavigationBar = { AppRootNavigationBar() }
+                        onBack = { currentScreen = screenBack }
                     )
                     Screen.NotificationApps -> com.pickupcode.app.ui.screens.NotificationAppsScreen(
                         onBack = { currentScreen = screenBack },
@@ -247,8 +234,6 @@ class MainActivity : ComponentActivity() {
                     Screen.Rules -> RulesScreen(
                         onBack = { currentScreen = settingsChildBack }
                     )
-                }
-
                 }
                 imageFeedback?.let { feedback ->
                     com.pickupcode.app.ui.components.SharedImageResultDialog(feedback,

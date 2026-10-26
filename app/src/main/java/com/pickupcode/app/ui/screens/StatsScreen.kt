@@ -13,9 +13,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Share
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Share
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CardDefaults
@@ -33,6 +36,7 @@ import com.pickupcode.app.learner.PatternLearner
 import com.pickupcode.app.learner.PatternLearner.PatternSuggestion
 import com.pickupcode.app.learner.PatternLearner.PatternStats
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -41,6 +45,7 @@ import kotlinx.coroutines.withContext
 fun StatsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
     var stats by remember { mutableStateOf<PatternStats?>(null) }
     var suggestions by remember { mutableStateOf<List<PatternSuggestion>>(emptyList()) }
     var learnedRules by remember { mutableStateOf<List<PatternLearner.LearnedRule>>(emptyList()) }
@@ -81,7 +86,7 @@ fun StatsScreen(onBack: () -> Unit) {
                 title = "识别统计",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                        Icon(MiuixIcons.Back, "返回")
                     }
                 },
                 actions = {
@@ -93,12 +98,13 @@ fun StatsScreen(onBack: () -> Unit) {
                                 com.pickupcode.app.share.ShareStatsCard.share(context, s)
                             }
                         }) {
-                            Icon(Icons.Default.Share, "分享成绩卡")
+                            Icon(MiuixIcons.Share, "分享成绩卡")
                         }
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(state = snackbar) }
     ) { padding ->
         if (loading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -132,7 +138,23 @@ fun StatsScreen(onBack: () -> Unit) {
                     }
                 }
 
-                LearnedRulesCard(learnedRules, onChanged = { reloadLearned() })
+                LearnedRulesCard(
+                    learnedRules,
+                    onChanged = { reloadLearned() },
+                    onDelete = { rule ->
+                        scope.launch {
+                            try {
+                                withContext(Dispatchers.IO) { PatternLearner.deleteRule(context, rule.regex) }
+                                reloadLearned()
+                                snackbar.showSnackbar("已删除规则")
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (_: Exception) {
+                                snackbar.showSnackbar("删除失败，请重试")
+                            }
+                        }
+                    },
+                )
             }
         }
     }
@@ -140,31 +162,37 @@ fun StatsScreen(onBack: () -> Unit) {
 
 @Composable
 private fun OverviewCard(stats: PatternStats) {
+    val hitRatio = if (stats.totalScans > 0) (stats.attempts.toFloat() / stats.totalScans).coerceIn(0f, 1f) else 0f
+    val hitRate = (hitRatio * 100f).toInt()
     Card(
         Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text("总览", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                StatItem("总扫描", stats.totalScans.toString())
-                StatItem("命中", stats.attempts.toString(), MaterialTheme.colorScheme.primary)
-                StatItem("未识别", stats.misses.toString(), MaterialTheme.colorScheme.error)
-                StatItem("已确认", stats.verified.toString(), MaterialTheme.colorScheme.tertiary)
-            }
+            Text("识别成功率", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("$hitRate%", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary)
+            Text("每次识别中找到取件码的比例", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (stats.totalScans > 0) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
                 LinearProgressIndicator(
-                    progress = { stats.attempts.toFloat() / stats.totalScans },
+                    progress = { hitRatio },
                     modifier = Modifier.fillMaxWidth(),
                     trackColor = MaterialTheme.colorScheme.surfaceVariant,
                 )
-                Text(
-                    "命中率 ${(stats.attempts * 100f / stats.totalScans).toInt()}%",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            }
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                StatItem("总扫描", stats.totalScans.toString())
+                StatItem("已识别", stats.attempts.toString(), MaterialTheme.colorScheme.primary)
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                StatItem("未识别", stats.misses.toString(), MaterialTheme.colorScheme.error)
+                StatItem("已确认", stats.verified.toString(), MaterialTheme.colorScheme.tertiary)
             }
         }
     }
@@ -172,9 +200,9 @@ private fun OverviewCard(stats: PatternStats) {
 
 @Composable
 private fun StatItem(label: String, value: String, color: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = color)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(Modifier.widthIn(min = 96.dp)) {
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = color)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -230,7 +258,7 @@ private fun SuggestionsCard(suggestions: List<PatternSuggestion>, onCleared: (Bo
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                IconText(R.drawable.ic_lightbulb, "模式建议", iconSize = 18.dp, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                IconText(R.drawable.ic_lightbulb, "识别改进建议", iconSize = 18.dp, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 if (suggestions.isNotEmpty()) {
                     TextButton(onClick = { showClearDialog = true }) {
                         Text("清除", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
@@ -241,41 +269,31 @@ private fun SuggestionsCard(suggestions: List<PatternSuggestion>, onCleared: (Bo
             if (suggestions.isEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "暂无建议。继续使用 App，系统会从未识别的文本中自动发现新模式。",
+                    "暂时没有需要改进的内容。应用会在识别不到取件码时逐步适应新的格式。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
                 Spacer(Modifier.height(8.dp))
-                suggestions.forEach { sug ->
-                    Card(
-                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(Modifier.padding(12.dp)) {
+                    suggestions.forEachIndexed { index, sug ->
+                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(sug.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                                 Text(
-                                    "${(sug.confidence * 100).toInt()}% · ${sug.count}次",
+                                "${sug.count} 次出现",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "样本: ${sug.sampleCodes.take(3).joinToString(", ")}",
+                                "例如：${sug.sampleCodes.take(3).joinToString("、")}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.height(2.dp))
-                            Text(
-                                sug.proposedRegex,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                            )
-                        }
                     }
+                    if (index < suggestions.lastIndex) HorizontalDivider()
                 }
             }
         }
@@ -284,8 +302,8 @@ private fun SuggestionsCard(suggestions: List<PatternSuggestion>, onCleared: (Bo
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("清除未匹配样本？") },
-            text = { Text("这会删除所有未识别的 OCR 文本记录，系统将重新从零开始学习。") },
+            title = { Text("清除未识别内容？") },
+            text = { Text("这会删除应用尚未识别出的内容，并清除由此积累的学习记录。") },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch(Dispatchers.IO) { PatternLearner.clearUnmatched(context) }
@@ -326,11 +344,11 @@ private fun HitRateCard(stats: List<DailyStats.DayStat>) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(Modifier.padding(16.dp)) {
-            IconText(R.drawable.ic_trending_up, "命中率趋势", iconSize = 18.dp, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("近 ${stats.size} 天识别命中率变化", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            IconText(R.drawable.ic_trending_up, "识别成功率趋势", iconSize = 18.dp, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("近 ${stats.size} 天找到取件码的比例", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(12.dp))
             if (stats.size < 2) {
-                Text("累计样本不足，继续使用后展示曲线。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("记录还不够多，继续使用后会显示趋势。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 val lineColor = MaterialTheme.colorScheme.primary
                 val gridColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
@@ -394,7 +412,11 @@ private fun patternLabel(id: String): String = when (id) {
 }
 
 @Composable
-private fun LearnedRulesCard(rules: List<PatternLearner.LearnedRule>, onChanged: () -> Unit) {
+private fun LearnedRulesCard(
+    rules: List<PatternLearner.LearnedRule>,
+    onChanged: () -> Unit,
+    onDelete: (PatternLearner.LearnedRule) -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     Card(
@@ -402,12 +424,12 @@ private fun LearnedRulesCard(rules: List<PatternLearner.LearnedRule>, onChanged:
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(Modifier.padding(16.dp)) {
-            IconText(R.drawable.ic_brain, "已学习规则", iconSize = 18.dp, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("系统自动从未识别样本中学习并应用的新正则。可停用/删除误学报废的规则。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            IconText(R.drawable.ic_brain, "应用学到的识别方式", iconSize = 18.dp, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("应用会从识别情况中逐步适应新的取件码格式。你可以停用或删除不适用的方式。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
             if (rules.isEmpty()) {
                 Text(
-                    "暂无已学习规则。继续使用 App，系统会从未识别的文本中自动学习并应用新正则。",
+                    "继续使用应用，它会逐步适应常见取件码。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -427,23 +449,16 @@ private fun LearnedRulesCard(rules: List<PatternLearner.LearnedRule>, onChanged:
                                 fontWeight = FontWeight.Medium,
                                 color = if (!rule.enabled || rule.decayed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                             )
-                            // A2: 质量标签（样本数 + 置信度）
                             Text(
-                                " · 样本${rule.sampleCount} · ${(rule.confidence * 100).toInt()}%",
+                                " · 命中 ${rule.count} 次",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             if (rule.decayed) {
-                                AssistChip(onClick = {}, label = { Text("已衰减", style = MaterialTheme.typography.labelSmall) },
+                                AssistChip(onClick = {}, label = { Text("较少使用", style = MaterialTheme.typography.labelSmall) },
                                     colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.surface))
                             }
                         }
-                        Text(
-                            rule.regex,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                        )
                         if (!rule.enabled) {
                             Text("已停用", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                         }
@@ -471,12 +486,7 @@ private fun LearnedRulesCard(rules: List<PatternLearner.LearnedRule>, onChanged:
                         }
                     ) { Text(if (rule.enabled) "停用" else "启用", style = MaterialTheme.typography.labelSmall) }
                     TextButton(
-                        onClick = {
-                            scope.launch(Dispatchers.IO) {
-                                PatternLearner.deleteRule(context, rule.regex)
-                                withContext(Dispatchers.Main) { onChanged() }
-                            }
-                        },
+                        onClick = { onDelete(rule) },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) { Text("删除", style = MaterialTheme.typography.labelSmall) }
                 }

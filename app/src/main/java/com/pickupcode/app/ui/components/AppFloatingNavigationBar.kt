@@ -12,10 +12,9 @@ import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Home
-import top.yukonga.miuix.kmp.icon.extended.Scan
 import top.yukonga.miuix.kmp.icon.extended.Settings
 
-/** Miuix 原生悬浮底栏；选择状态直接由 MainActivity 的页面路由提供。 */
+/** 官方 Miuix 悬浮底栏，选中状态由当前根路由提供。 */
 @Composable
 fun AppFloatingNavigationBar(
     selectedDestination: RootDestination,
@@ -25,12 +24,10 @@ fun AppFloatingNavigationBar(
         RootDestination.entries.forEach { destination ->
             val label = when (destination) {
                 RootDestination.HOME -> "首页"
-                RootDestination.IDENTITY_CODE -> "身份码"
                 RootDestination.SETTINGS -> "设置"
             }
             val icon = when (destination) {
                 RootDestination.HOME -> MiuixIcons.Home
-                RootDestination.IDENTITY_CODE -> MiuixIcons.Scan
                 RootDestination.SETTINGS -> MiuixIcons.Settings
             }
             val isSelected = destination == selectedDestination

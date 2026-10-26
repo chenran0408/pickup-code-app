@@ -112,7 +112,9 @@ fun Button(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean 
     shape: Shape = RoundedCornerShape(16.dp), colors: ButtonColors = ButtonDefaults.buttonColors(),
     border: BorderStroke? = null, contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
     content: @Composable RowScope.() -> Unit) {
-    val background = if (colors.containerColor == Color.Transparent) MiuixTheme.colorScheme.secondaryVariant
+    // Keep TextButton and OutlinedButton surfaces transparent. Filling these with a palette
+    // variant made ordinary settings actions read as large disabled gray blocks.
+    val background = if (colors.containerColor == Color.Transparent) Color.Transparent
         else colors.containerColor
     if (border != null) {
         top.yukonga.miuix.kmp.basic.Surface(
@@ -183,8 +185,8 @@ fun FilledTonalButton(onClick: () -> Unit, modifier: Modifier = Modifier, enable
 fun FilterChip(selected: Boolean, onClick: () -> Unit, label: @Composable () -> Unit, modifier: Modifier = Modifier,
     enabled: Boolean = true, leadingIcon: @Composable (() -> Unit)? = null, trailingIcon: @Composable (() -> Unit)? = null,
     colors: SelectableChipColors = FilterChipDefaults.filterChipColors(), shape: Shape = RoundedCornerShape(12.dp), border: BorderStroke? = null) {
-    val background = if (selected) MaterialTheme.colorScheme.primary else MiuixTheme.colorScheme.secondaryVariant
-    val foreground = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    val background = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    val foreground = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
     Button(onClick, modifier.semantics { this.selected = selected; role = Role.Checkbox }, enabled, shape,
         ButtonDefaults.buttonColors(containerColor = background, contentColor = foreground), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
         leadingIcon?.invoke(); if (leadingIcon != null) Spacer(Modifier.width(6.dp)); label()
@@ -195,7 +197,7 @@ fun FilterChip(selected: Boolean, onClick: () -> Unit, label: @Composable () -> 
 @Composable
 fun AssistChip(onClick: () -> Unit, label: @Composable () -> Unit, modifier: Modifier = Modifier,
     enabled: Boolean = true, colors: ChipColors = AssistChipDefaults.assistChipColors(
-        containerColor = MiuixTheme.colorScheme.secondaryVariant, labelColor = MaterialTheme.colorScheme.onSurfaceVariant)) {
+        containerColor = MaterialTheme.colorScheme.surface, labelColor = MaterialTheme.colorScheme.onSurface)) {
     Button(onClick, modifier, enabled, colors = ButtonDefaults.buttonColors(containerColor = colors.containerColor,
         contentColor = colors.labelColor), contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { label() }
 }
@@ -249,14 +251,6 @@ fun Scaffold(modifier: Modifier = Modifier, topBar: @Composable () -> Unit = {},
     containerColor: Color = MiuixTheme.colorScheme.background, content: @Composable (PaddingValues) -> Unit) =
     top.yukonga.miuix.kmp.basic.Scaffold(modifier, topBar, bottomBar, floatingActionButton,
         snackbarHost = snackbarHost, containerColor = containerColor, contentWindowInsets = WindowInsets.safeDrawing, content = content)
-
-@Composable
-fun HorizontalDivider(modifier: Modifier = Modifier, thickness: Dp = 1.dp, color: Color = MiuixTheme.colorScheme.dividerLine) =
-    Box(modifier.fillMaxWidth().height(thickness).background(color))
-
-@Composable
-fun VerticalDivider(modifier: Modifier = Modifier, thickness: Dp = 1.dp, color: Color = MiuixTheme.colorScheme.dividerLine) =
-    Box(modifier.width(thickness).fillMaxHeight().background(color))
 
 // The Miuix 0.9.x progress indicators provide their own track and motion semantics.
 @Composable

@@ -4,13 +4,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.icon.extended.Import
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarResult
+import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import com.pickupcode.app.ui.miuix.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.pickupcode.app.learner.CommonStationStore
 import com.pickupcode.app.learner.SavedAddressStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -39,13 +45,29 @@ fun SavedAddressScreen(onBack: () -> Unit) {
     val snackbar = remember { SnackbarHostState() }
 
     var items by remember { mutableStateOf<List<SavedAddressStore.SavedAddress>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
     var editing by remember { mutableStateOf<SavedAddressStore.SavedAddress?>(null) }
     var showEditor by remember { mutableStateOf(false) }
     var showImport by remember { mutableStateOf(false) }
+    var showClearConfirmation by remember { mutableStateOf(false) }
+    var moreMenu by remember { mutableStateOf(false) }
     var importCandidates by remember { mutableStateOf<List<String>>(emptyList()) }
 
     suspend fun reload() {
         items = withContext(Dispatchers.IO) { SavedAddressStore.getAll(context) }
+        loading = false
+    }
+
+    fun startImport() {
+        scope.launch {
+            val candidates = withContext(Dispatchers.IO) {
+                val stations = CommonStationStore.getCommonStations(context).map { it.name }
+                val points = CommonStationStore.getPickupPoints(context).map { it.name }
+                (points + stations).filter { it.isNotBlank() }.distinct().take(30)
+            }
+            if (candidates.isEmpty()) snackbar.showSnackbar("还没有可导入的历史记录")
+            else { importCandidates = candidates; showImport = true }
+        }
     }
 
     LaunchedEffect(Unit) { reload() }
@@ -56,14 +78,29 @@ fun SavedAddressScreen(onBack: () -> Unit) {
                 title = "常用取件地址",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(MiuixIcons.Back, contentDescription = "返回")
                     }
                 },
                 actions = {
                     IconButton(onClick = {
                         editing = null
                         showEditor = true
-                    }) { Icon(Icons.Default.Add, contentDescription = "新增") }
+                    }) { Icon(MiuixIcons.Add, contentDescription = "新增") }
+                    Box {
+                        IconButton(onClick = { moreMenu = true }) { Icon(MiuixIcons.More, contentDescription = "更多地址操作") }
+                        DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("从历史导入") },
+                                onClick = { moreMenu = false; startImport() },
+                                leadingIcon = { Icon(MiuixIcons.Import, null) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("全部清除", color = MaterialTheme.colorScheme.error) },
+                                onClick = { moreMenu = false; showClearConfirmation = true },
+                                leadingIcon = { Icon(MiuixIcons.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                            )
+                        }
+                    }
                 }
             )
         },
@@ -71,84 +108,43 @@ fun SavedAddressScreen(onBack: () -> Unit) {
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             Text(
-                "填「完整名称」+「关键词」：识别到任一关键词时，就用完整名称替换掉识别结果。" +
-                    "关键词留空则用完整名称匹配。数据仅加密保存在本机。",
+                "添加常去的驿站或快递柜。识别到你填写的关键词时，取件记录会显示对应地址；地址只保存在这台手机上。",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
 
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        val candidates = withContext(Dispatchers.IO) {
-                            val stations = CommonStationStore.getCommonStations(context).map { it.name }
-                            val points = CommonStationStore.getPickupPoints(context).map { it.name }
-                            (points + stations).filter { it.isNotBlank() }.distinct().take(30)
-                        }
-                        if (candidates.isEmpty()) {
-                            snackbar.showSnackbar("还没有可导入的历史记录")
-                        } else {
-                            importCandidates = candidates
-                            showImport = true
-                        }
-                    }
-                }) { Text("从历史导入") }
-
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        withContext(Dispatchers.IO) { SavedAddressStore.clear(context) }
-                        reload()
-                        snackbar.showSnackbar("已清除全部常用地址")
-                    }
-                }) { Text("全部清除") }
-            }
-
-            if (items.isEmpty()) {
+            if (loading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (items.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("还没有预存地址\n点右上角 + 添加，或从历史导入", style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
                 LazyColumn(
                     Modifier.weight(1f).padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     items(items, key = { it.id }) { item ->
-                        Card(Modifier.fillMaxWidth()) {
+                        var menu by remember(item.id) { mutableStateOf(false) }
+                        Column(Modifier.fillMaxWidth()) {
                             Row(
-                                Modifier.fillMaxWidth().padding(12.dp),
+                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(
-                                    Modifier
-                                        .weight(1f)
-                                        .clickable {
-                                            editing = item
-                                            showEditor = true
-                                        }
+                                    Modifier.weight(1f).clickable {
+                                        editing = item
+                                        showEditor = true
+                                    }.padding(vertical = 8.dp)
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            item.fullName,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        if (item.origin == "promoted") {
-                                            Spacer(Modifier.width(6.dp))
-                                            Text(
-                                                "自动提升",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                    // 关键词：命中的依据；为空说明用完整名称兜底
-                                    val kw = if (item.keywords.isEmpty()) "（无关键词，用完整名称匹配）"
-                                    else "关键词：" + item.keywords.joinToString("、")
+                                    Text(item.fullName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                                     Text(
-                                        kw,
+                                        buildString {
+                                            append(if (item.keywords.isEmpty()) "按地址名称识别" else "识别词：${item.keywords.joinToString("、")}")
+                                            if (item.origin == "promoted") append(" · 从历史添加")
+                                        },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -162,14 +158,39 @@ fun SavedAddressScreen(onBack: () -> Unit) {
                                         }
                                     }
                                 )
-                                IconButton(onClick = {
-                                    scope.launch {
-                                        withContext(Dispatchers.IO) { SavedAddressStore.delete(context, item.id) }
-                                        reload()
-                                        snackbar.showSnackbar("已删除（不会再被自动学回来）")
+                                Box {
+                                    IconButton(onClick = { menu = true }) { Icon(MiuixIcons.More, "${item.fullName}更多操作") }
+                                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                        DropdownMenuItem(text = { Text("编辑地址") }, onClick = {
+                                            menu = false; editing = item; showEditor = true
+                                        })
+                                        DropdownMenuItem(text = { Text("删除地址", color = MaterialTheme.colorScheme.error) }, onClick = {
+                                            menu = false
+                                            scope.launch {
+                                                try {
+                                                    withContext(Dispatchers.IO) { SavedAddressStore.delete(context, item.id) }
+                                                    reload()
+                                                    val result = snackbar.showSnackbar(
+                                                        message = "已删除地址",
+                                                        actionLabel = "撤销",
+                                                        duration = SnackbarDuration.Long,
+                                                    )
+                                                    if (result == SnackbarResult.ActionPerformed) {
+                                                        withContext(Dispatchers.IO) { SavedAddressStore.upsert(context, item) }
+                                                        reload()
+                                                        snackbar.showSnackbar("已恢复地址")
+                                                    }
+                                                } catch (e: CancellationException) {
+                                                    throw e
+                                                } catch (_: Exception) {
+                                                    snackbar.showSnackbar("操作失败，请重试")
+                                                }
+                                            }
+                                        }, leadingIcon = { Icon(MiuixIcons.Delete, null, tint = MaterialTheme.colorScheme.error) })
                                     }
-                                }) { Icon(Icons.Default.Delete, contentDescription = "删除") }
+                                }
                             }
+                            HorizontalDivider(Modifier.padding(start = 8.dp))
                         }
                     }
                 }
@@ -200,6 +221,27 @@ fun SavedAddressScreen(onBack: () -> Unit) {
         )
     }
 
+    if (showClearConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirmation = false },
+            title = { Text("清除全部常用地址？") },
+            text = { Text("所有手动保存和自动提升的常用地址都会移除。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearConfirmation = false
+                        scope.launch {
+                            withContext(Dispatchers.IO) { SavedAddressStore.clear(context) }
+                            reload()
+                            snackbar.showSnackbar("已清除全部常用地址")
+                        }
+                    },
+                ) { Text("全部清除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { showClearConfirmation = false }) { Text("取消") } },
+        )
+    }
+
     if (showImport) {
         AlertDialog(
             onDismissRequest = { showImport = false },
@@ -207,7 +249,7 @@ fun SavedAddressScreen(onBack: () -> Unit) {
             text = {
                 Column {
                     Text(
-                        "导入后「完整名称」与「关键词」都先填成该站名，建议再补一个更短的关键词。",
+                        "导入后可编辑地址名称和识别词，让应用更容易找到对应地点。",
                         style = MaterialTheme.typography.bodySmall
                     )
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -279,19 +321,19 @@ private fun SavedAddressEditorDialog(
                 OutlinedTextField(
                     value = fullName,
                     onValueChange = { fullName = it },
-                    labelText = "完整名称（识别到后就用它）",
+                    labelText = "地址名称",
                     placeholder = { Text("如：长兴路北段菜鸟驿站") },
                     singleLine = true
                 )
                 OutlinedTextField(
                     value = keywords,
                     onValueChange = { keywords = it },
-                    labelText = "关键词，逗号分隔（命中任一即触发）",
+                    labelText = "识别词，用逗号分隔",
                     placeholder = { Text("如：北段驿站,长兴路") },
                     singleLine = true
                 )
                 Text(
-                    "关键词留空时用完整名称匹配。",
+                    "识别词留空时，应用会根据地址名称查找。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

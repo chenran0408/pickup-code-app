@@ -4,6 +4,7 @@ package com.pickupcode.app.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,17 +16,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import com.pickupcode.app.ui.miuix.AlertDialog
-import com.pickupcode.app.ui.miuix.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import com.pickupcode.app.ui.miuix.Card
 import androidx.compose.material3.CardDefaults
 import com.pickupcode.app.ui.miuix.FilterChip
 import com.pickupcode.app.ui.miuix.Icon
 import com.pickupcode.app.ui.miuix.IconButton
+import com.pickupcode.app.ui.miuix.DropdownMenu
+import com.pickupcode.app.ui.miuix.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import com.pickupcode.app.ui.miuix.OutlinedTextField
 import com.pickupcode.app.ui.miuix.Scaffold
@@ -49,13 +52,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pickupcode.app.R
 import com.pickupcode.app.extractor.CodeExtractor
 import com.pickupcode.app.learner.PatternLearner
 import com.pickupcode.app.ui.components.IconText
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -101,12 +104,15 @@ fun RulesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "自定义规则",
+                title = "识别规则",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(MiuixIcons.Back, contentDescription = "返回")
                     }
-                }
+                },
+                actions = {
+                    IconButton(onClick = { adding = true }) { Icon(MiuixIcons.Add, contentDescription = "新增规则") }
+                },
             )
         },
         snackbarHost = { SnackbarHost(state = snackbar) }
@@ -118,9 +124,7 @@ fun RulesScreen(onBack: () -> Unit) {
         ) {
             item {
                 Text(
-                    "内置规则可以开启或停用，支持编辑的规则可改写；" +
-                        "你添加的规则和自动学习的规则都在「我的规则」中管理。" +
-                        "改动立即生效（最多 2 秒缓存）。改坏了可以单条还原，或一键还原默认。",
+                    "这些识别方式决定应用如何从通知和页面内容中找到取件码。你可以开启、停用或调整；需要时也能恢复默认。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -129,7 +133,7 @@ fun RulesScreen(onBack: () -> Unit) {
             // ---------------- 内置正则模式 ----------------
             item {
                 IconText(
-                    R.drawable.ic_wrench, "内置正则模式（${builtins.count { it.enabled }}/${builtins.size} 启用）",
+                    R.drawable.ic_wrench, "默认识别方式（已开启 ${builtins.count { it.enabled }} 项）",
                     iconSize = 18.dp, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
                 )
             }
@@ -162,16 +166,12 @@ fun RulesScreen(onBack: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconText(
-                        R.drawable.ic_brain, "我的规则（${myRules.size}）",
+                        R.drawable.ic_brain, "我的识别方式（${myRules.size}）",
                         modifier = Modifier.weight(1f), iconSize = 18.dp, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
                     )
-                    TextButton(onClick = { adding = true }) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text("添加规则")
-                    }
                 }
                 Text(
-                    "自动学习的规则和手动添加的规则都在这里，识别时一视同仁。",
+                    "你添加的方式和应用逐步学到的方式都在这里管理。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -183,7 +183,7 @@ fun RulesScreen(onBack: () -> Unit) {
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Text(
-                            "还没有自定义规则。可以点「添加规则」自己写一条，或继续使用 App 让它自动学习。",
+                            "还没有自定义识别方式。你可以添加一种，也可以继续使用应用，让它逐步适应常见取件码。",
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(12.dp)
                         )
@@ -202,9 +202,15 @@ fun RulesScreen(onBack: () -> Unit) {
                     onEdit = { editingRule = rule },
                     onDelete = {
                         scope.launch {
-                            withContext(Dispatchers.IO) { PatternLearner.deleteRule(context, rule.regex) }
-                            reload()
-                            toast("已删除「${rule.label}」")
+                            try {
+                                withContext(Dispatchers.IO) { PatternLearner.deleteRule(context, rule.regex) }
+                                reload()
+                                toast("已删除规则")
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (_: Exception) {
+                                toast("删除失败，请重试")
+                            }
                         }
                     }
                 )
@@ -227,8 +233,7 @@ fun RulesScreen(onBack: () -> Unit) {
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "把内置正则的停用/改写全部撤回出厂状态，并清空「我的规则」（含自动学习与手动添加）。" +
-                                "不会动预存地址、常用取件点、已学习的排除词和识别统计。",
+                        "恢复默认识别规则，并删除你添加或学到的规则。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
@@ -248,7 +253,7 @@ fun RulesScreen(onBack: () -> Unit) {
     // ---------------- 弹窗 ----------------
     editingBuiltin?.let { info ->
         RegexEditDialog(
-            title = "改写内置正则",
+            title = "调整识别格式",
             subtitle = info.label,
             initialRegex = info.regex,
             initialLabel = null,
@@ -259,7 +264,7 @@ fun RulesScreen(onBack: () -> Unit) {
                 scope.launch {
                     val check = PatternLearner.validateRegex(regex)
                     if (!check.ok) {
-                        toast(check.error ?: "正则不合法")
+                        toast(humanRuleValidation(check.error ?: ""))
                     } else {
                         withContext(Dispatchers.IO) { PatternLearner.setBuiltinRegex(context, info.id, regex) }
                         editingBuiltin = null
@@ -275,7 +280,7 @@ fun RulesScreen(onBack: () -> Unit) {
         val target = editingRule
         RegexEditDialog(
             title = if (target == null) "添加规则" else "编辑规则",
-            subtitle = if (target == null) "整段匹配到的内容会被当作码值" else target.label,
+            subtitle = if (target == null) "符合此格式的内容会被当作取件码" else target.label,
             initialRegex = target?.regex ?: "",
             initialLabel = target?.label,
             initialType = target?.type,
@@ -285,10 +290,10 @@ fun RulesScreen(onBack: () -> Unit) {
                 scope.launch {
                     val check = PatternLearner.validateRegex(regex)
                     if (!check.ok) {
-                        toast(check.error ?: "正则不合法")
+                        toast(humanRuleValidation(check.error ?: ""))
                         return@launch
                     }
-                    if (check.warning != null) toast(check.warning)
+                    if (check.warning != null) toast(humanRuleValidation(check.warning))
                     val result = withContext(Dispatchers.IO) {
                         if (target == null) PatternLearner.addUserRule(context, regex, type, label)
                         else PatternLearner.updateRule(context, target.regex, regex, type, label)
@@ -310,27 +315,24 @@ fun RulesScreen(onBack: () -> Unit) {
             onDismissRequest = { confirmReset = false },
             title = { Text("还原默认规则？") },
             text = {
-                Text(
-                    "将撤回 ${builtins.count { !it.enabled || it.overridden }} 项内置正则改动，" +
-                        "并清空 ${myRules.size} 条自定义规则。\n\n" +
-                        "此操作不可撤销（预存地址、常用取件点、排除词不受影响）。"
-                )
+                    Text("恢复默认识别规则，并删除 ${myRules.size} 条自定义规则。此操作无法撤销。")
             },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
-                        val (rules, overrides) = withContext(Dispatchers.IO) {
+                        val (rules, _) = withContext(Dispatchers.IO) {
                             PatternLearner.restoreDefaults(context)
                         }
                         confirmReset = false
                         reload()
-                        toast("已还原默认：清掉 $rules 条自定义规则、$overrides 项内置改动")
+                        toast("已恢复默认识别方式，移除了 $rules 条自定义方式")
                     }
                 }) { Text("确认还原", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("取消") } }
         )
     }
+
 }
 
 /* ═══════════════════ 行 ═══════════════════ */
@@ -342,68 +344,42 @@ private fun BuiltinRuleRow(
     onEdit: () -> Unit,
     onReset: () -> Unit
 ) {
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (info.enabled) MaterialTheme.colorScheme.surface
-            else MaterialTheme.colorScheme.surfaceContainerLow
-        )
-    ) {
-        Column(Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f).padding(end = 8.dp)) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            info.label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = if (info.enabled) MaterialTheme.colorScheme.onSurface
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (info.overridden) {
-                            Spacer(Modifier.size(6.dp))
-                            AssistChip(
-                                onClick = {},
-                                label = { Text(if (info.overrideRejected) "改写无效，已回退" else "已改写", style = MaterialTheme.typography.labelSmall) },
-                                colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
-                            )
-                        }
-                        if (!info.enabled) {
-                            Spacer(Modifier.size(6.dp))
-                            Text("已停用", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                    Text(
-                        info.regex,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (!info.editable) {
-                        Text(
-                            "该模式与识别逻辑绑定，只支持停用/还原",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                TypeIcon(info.type)
-                Switch(checked = info.enabled, onCheckedChange = onToggle)
+    var menu by remember(info.id) { mutableStateOf(false) }
+    var showDetails by remember(info.id) { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(info.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium,
+                    color = if (info.enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(builtinPurpose(info.label, info.type), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${ruleTypeLabel(info.type)} · ${if (info.enabled) "启用中" else "已停用"}${if (!info.editable) " · 固定方式" else ""}",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (info.overridden) Text(if (info.overrideRejected) "格式无效，已恢复原设置" else "已调整",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
             }
-            if (info.editable || info.overridden || !info.enabled) {
-                FlowRow(horizontalArrangement = Arrangement.End, verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                    if (info.editable) {
-                        TextButton(onClick = onEdit) { Text("改写", style = MaterialTheme.typography.labelSmall) }
-                    }
-                    if (info.overridden || !info.enabled) {
-                        TextButton(onClick = onReset) { Text("还原", style = MaterialTheme.typography.labelSmall) }
-                    }
+            TypeIcon(info.type)
+            Switch(checked = info.enabled, onCheckedChange = onToggle)
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(MiuixIcons.More, "${info.label}更多操作") }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text("规则详情") }, onClick = { menu = false; showDetails = true })
+                    if (info.editable) DropdownMenuItem(text = { Text("改写规则") }, onClick = { menu = false; onEdit() })
+                    if (info.overridden || !info.enabled) DropdownMenuItem(text = { Text("还原此规则") }, onClick = { menu = false; onReset() })
                 }
             }
         }
     }
+    if (showDetails) AlertDialog(
+        onDismissRequest = { showDetails = false },
+        title = { Text(info.label) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(builtinPurpose(info.label, info.type))
+            Text("识别格式", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(info.regex, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+        } },
+        confirmButton = { TextButton(onClick = { showDetails = false }) { Text("关闭") } },
+    )
 }
 
 @Composable
@@ -413,73 +389,76 @@ private fun MyRuleRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (rule.enabled) MaterialTheme.colorScheme.surface
-            else MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f).padding(end = 8.dp)) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(rule.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                        Spacer(Modifier.size(6.dp))
-                        AssistChip(
-                            onClick = {},
-                            label = {
-                                Text(
-                                    when (rule.source) {
-                                        PatternLearner.SOURCE_USER -> "手动"
-                                        PatternLearner.SOURCE_VERIFIED -> "已确认"
-                                        else -> "自动学习"
-                                    },
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            colors = AssistChipDefaults.assistChipColors(
-                                // 「手动」与「已确认」都源自用户动作（强证据），用同一强调色；自动学习用中性色
-                                containerColor = if (rule.source == PatternLearner.SOURCE_USER ||
-                                    rule.source == PatternLearner.SOURCE_VERIFIED
-                                ) {
-                                    MaterialTheme.colorScheme.primaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant
-                                }
-                            )
-                        )
-                        if (rule.badCount >= 3) {
-                            Spacer(Modifier.size(6.dp))
-                            Text("已自动停用", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-                        } else if (rule.decayed) {
-                            Spacer(Modifier.size(6.dp))
-                            Text("已衰减", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    Text(
-                        rule.regex,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                TypeIcon(rule.type)
-                Switch(checked = rule.enabled && rule.badCount < 3, onCheckedChange = onToggle)
+    var menu by remember(rule.regex) { mutableStateOf(false) }
+    var showDetails by remember(rule.regex) { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(rule.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium,
+                    color = if (rule.enabled && rule.badCount < 3) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(learnedPurpose(rule.type, rule.source), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${if (rule.enabled && rule.badCount < 3) "启用中" else "已停用"} · 成功识别 ${rule.count} 次",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (rule.badCount >= 3 || rule.decayed) Text(if (rule.badCount >= 3) "多次标记有误，已自动停用" else "近期较少使用",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
             }
-            FlowRow(horizontalArrangement = Arrangement.End, verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                TextButton(onClick = onEdit) { Text("编辑", style = MaterialTheme.typography.labelSmall) }
-                TextButton(
-                    onClick = onDelete,
-                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) { Text("删除", style = MaterialTheme.typography.labelSmall) }
+            TypeIcon(rule.type)
+            Switch(checked = rule.enabled && rule.badCount < 3, onCheckedChange = onToggle)
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(MiuixIcons.More, "${rule.label}更多操作") }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text("规则详情") }, onClick = { menu = false; showDetails = true })
+                    DropdownMenuItem(text = { Text("编辑规则") }, onClick = { menu = false; onEdit() })
+                    DropdownMenuItem(text = { Text("删除规则", color = MaterialTheme.colorScheme.error) }, onClick = { menu = false; onDelete() },
+                        leadingIcon = { Icon(MiuixIcons.Delete, null, tint = MaterialTheme.colorScheme.error) })
+                }
             }
         }
     }
+    if (showDetails) AlertDialog(
+        onDismissRequest = { showDetails = false },
+        title = { Text(rule.label) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(learnedPurpose(rule.type, rule.source))
+            Text("识别格式", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(rule.regex, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+        } },
+        confirmButton = { TextButton(onClick = { showDetails = false }) { Text("关闭") } },
+    )
+}
+
+private fun ruleTypeLabel(type: String): String = when (type) {
+    "pickup_food" -> "取餐码识别"
+    "coupon" -> "券码识别"
+    else -> "取件码识别"
+}
+
+private fun humanRuleValidation(message: String): String = when {
+    message.contains("不能为空") -> "请填写识别格式。"
+    message.contains("过长") -> "内容太长，请精简后重试。"
+    message.contains("语法错误") -> "格式有误，请检查输入。"
+    message.contains("几乎所有文本") -> "这个格式范围太宽，可能把普通内容误认为取件码，请补充更具体的条件。"
+    message.contains("空字符串") -> "这个格式可能识别出空结果，请调整后重试。"
+    message.contains("边界") -> "建议限制格式前后的字符，避免从更长的号码中截取一部分。"
+    else -> message.replace("正则", "识别格式").replace("候选", "结果")
+}
+
+private fun builtinPurpose(label: String, type: String): String = when {
+    type == "coupon" || label.contains("券号") -> "从优惠券通知中提取符合此格式的券号。"
+    label.contains("取餐") || type == "pickup_food" -> "识别取餐通知中符合此格式的取餐码。"
+    label.contains("前缀") || label.contains("标签") || label.contains("凭码") -> "结合取件提示文字识别，降低把普通数字误当取件码的概率。"
+    else -> "识别符合此数字或字母结构的取件码候选值。"
+}
+
+private fun learnedPurpose(type: String, source: String): String {
+    val kind = ruleTypeLabel(type)
+    val origin = when (source) {
+        PatternLearner.SOURCE_USER -> "你手动添加的规则"
+        PatternLearner.SOURCE_VERIFIED -> "根据你确认过的记录学习到的规则"
+        else -> "应用根据过往识别情况整理的方式"
+    }
+    return "$origin，用于$kind。"
 }
 
 @Composable
@@ -531,17 +510,17 @@ private fun RegexEditDialog(
                 OutlinedTextField(
                     value = regex,
                     onValueChange = { regex = it },
-                    labelText = "正则表达式",
+                    labelText = "识别格式",
                     singleLine = false,
                     maxLines = 4,
                     isError = check?.ok == false,
                     supportingText = {
                         when {
-                            check == null -> Text("整段匹配到的内容会被当作码值；全角符号（【】（）：等）会自动转半角",
+                            check == null -> Text("符合此格式的内容会被识别为取件码",
                                 style = MaterialTheme.typography.labelSmall)
-                            check.ok.not() -> Text(check.error ?: "", style = MaterialTheme.typography.labelSmall,
+                            check.ok.not() -> Text(humanRuleValidation(check.error ?: ""), style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error)
-                            check.warning != null -> Text(check.warning, style = MaterialTheme.typography.labelSmall,
+                            check.warning != null -> Text(humanRuleValidation(check.warning), style = MaterialTheme.typography.labelSmall,
                                 color = com.pickupcode.app.ui.theme.TypeCoupon)
                             else -> Text("看起来没问题", style = MaterialTheme.typography.labelSmall)
                         }

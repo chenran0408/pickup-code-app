@@ -1,8 +1,7 @@
 package com.pickupcode.app.ui.navigation
 
-/** 应用底部一级目的地；二级页面不参与悬浮底栏选中状态。 */
+/** 一级悬浮导航目的地；身份码继续从首页快捷入口打开。 */
 enum class RootDestination {
     HOME,
-    IDENTITY_CODE,
     SETTINGS,
 }

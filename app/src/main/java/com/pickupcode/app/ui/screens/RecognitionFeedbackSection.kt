@@ -27,7 +27,7 @@ fun RecognitionFeedbackSection() {
             Text("识别反馈", style = MaterialTheme.typography.titleMedium)
             Text("识别漏了或识别错了，可以保存脱敏样例帮助改进。", style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { feedback = true }, modifier = Modifier.fillMaxWidth()) { Text("反馈漏识别或识别错误") }
-            Text("更新记录：保留已取历史，新增过期筛选和通知监听状态，简化主页。", style = MaterialTheme.typography.bodySmall)
+            Text("更新记录：保留已取历史，新增过期筛选和通知来源状态，简化主页。", style = MaterialTheme.typography.bodySmall)
         }
     }
     if (feedback) FeedbackDialog(onDismiss = { feedback = false })
