@@ -122,7 +122,7 @@ jobs:
             test -s "$APK_PATH"
             BADGING=$("$AAPT2" dump badging "$APK_PATH")
             PACKAGE=$(echo "$BADGING" | sed -n "s/package: name='\([^']*\)'.*/\1/p")
-            MIN_SDK=$(echo "$BADGING" | sed -n "s/sdkVersion:'\([^']*\)'.*/\1/p")
+            MIN_SDK=$(echo "$BADGING" | sed -n "s/minSdkVersion:'\([^']*\)'.*/\1/p")
             TARGET_SDK=$(echo "$BADGING" | sed -n "s/targetSdkVersion:'\([^']*\)'.*/\1/p")
             VERSION_NAME=$(echo "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
             VERSION_CODE=$(echo "$BADGING" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p")
