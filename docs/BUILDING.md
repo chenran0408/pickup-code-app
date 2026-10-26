@@ -38,7 +38,7 @@ Gradle 构建时通过以下任一方式定位 SDK：
 cd pickup-code-app
 
 # 编译 Debug APK（首次运行会自动下载 Gradle 9.7.1 与依赖）
-./gradlew assembleDebug
+./gradlew :app:assembleGeneralDebug :app:assembleMiRootDebug
 ```
 
 ### Windows
@@ -49,7 +49,7 @@ cd pickup-code-app
 REM 若 JDK 不在 PATH 中，先指定（替换为你的实际路径）
 set JAVA_HOME=C:\Program Files\Java\jdk-21
 
-gradlew.bat assembleDebug
+gradlew.bat :app:assembleGeneralDebug :app:assembleMiRootDebug
 ```
 
 ### 项目缺少 gradlew 时（备用方案）
@@ -58,26 +58,28 @@ gradlew.bat assembleDebug
 
 ```bash
 gradle wrapper --gradle-version 9.7.1 --distribution-type bin
-./gradlew assembleDebug
+./gradlew :app:assembleGeneralDebug :app:assembleMiRootDebug
 ```
 
 ## 构建产物
 
-Debug APK 输出到 `app/build/outputs/apk/debug/`。项目仅生成 arm64-v8a APK：
+Debug APK 仅生成 arm64-v8a，分别输出到：
 
 ```text
-app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+app/build/outputs/apk/general/debug/app-general-arm64-v8a-debug.apk
+app/build/outputs/apk/miRoot/debug/app-miRoot-arm64-v8a-debug.apk
 ```
 
-将 APK 安装到设备即可使用（Debug 包使用自动签名，可直接 `adb install`，按你的设备架构选择对应文件）：
+通用版包含离线 ML Kit 中文 OCR 与条码模型，支持 Android 8+。MI-root 专用版使用 `com.pickupcode.app.miroot`，最低 Android 16（API 36），面向 Android 16/17；它不包含本地模型，需要目标小米系统提供可用的 AICR OCR V2 与条码服务。两包可并装。Debug 包使用自动签名：
 
 ```bash
-adb install app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+adb install app/build/outputs/apk/general/debug/app-general-arm64-v8a-debug.apk
+adb install app/build/outputs/apk/miRoot/debug/app-miRoot-arm64-v8a-debug.apk
 ```
 
 ## Release 构建签名（可选）
 
-Release 包在未配置签名时按 **unsigned** 构建（便于 CI / 无密钥环境编译）。如需正式签名，在项目根目录创建 `keystore.properties`（已被 `.gitignore` 忽略，不会提交到仓库）：
+两种 Release 变体均启用 R8 与资源收缩。未配置签名时按 **unsigned** 构建（便于 CI / 无密钥环境编译）。构建命令为 `./gradlew :app:assembleGeneralRelease :app:assembleMiRootRelease`；正式 Release 工作流会发布两种 APK 并分别生成 SHA-256。如需正式签名，在项目根目录创建 `keystore.properties`（已被 `.gitignore` 忽略，不会提交到仓库）：
 
 ```properties
 STORE_FILE=/path/to/your.keystore

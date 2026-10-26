@@ -1,11 +1,8 @@
 # ProGuard/R8 rules for PickupCodeApp
 
-# Keep ML Kit
--keep class com.google.mlkit.** { *; }
+# ML Kit AARs provide targeted consumer rules for reflection/JNI-sensitive members;
+# do not keep the entire SDK, so R8 can remove unused API and implementation classes.
 -dontwarn com.google.mlkit.**
-
-# Keep Room entities
--keep class com.pickupcode.app.data.** { *; }
 
 # Keep Kotlin coroutines
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}

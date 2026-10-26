@@ -2,7 +2,7 @@
 
 自动从短信、通知、截图和分享内容中提取取件码、取餐码及券码。打开应用即可查看、复制和标记已取，也能直接打开淘宝码、菜鸟码或拼多多码。
 
-默认在本机识别和保存；离线中文 OCR 与二维码模型随安装包提供。AI、地图和快递查询均为可选功能，需要自行配置并开启。
+默认在本机识别和保存。通用版自带离线中文 OCR 与二维码模型；MI-root 专用版直接调用小米系统 AICR，不打包识别模型。AI、地图和快递查询均为可选功能，需要自行配置并开启。
 
 当前源码在 v1.3.0 的 Miuix 主题基础上，升级到 Miuix 模块化组件，并以原生 `FloatingNavigationBar` 提供“首页 / 身份码 / 设置”一级导航。改造范围与版本选择见 [Miuix 迁移说明](docs/MIUIX_MIGRATION_2026-10.md)，主题说明见 [主题适配](docs/MIUIX_THEME_2026-10.md)。
 
@@ -29,7 +29,7 @@
 
 ## 下载与安装
 
-支持 Android 8.0 及以上的 arm64 手机。下载 [正式 APK](https://github.com/chenran0408/pickup-code-app/releases/latest/download/app-arm64-v8a-release.apk)，校验值见 Release 附件 `SHA256SUMS.txt`。
+通用版支持 Android 8.0 及以上 arm64 手机，从 [Release 下载](https://github.com/chenran0408/pickup-code-app/releases/latest/download/app-arm64-v8a-release.apk)。MI-root 专用版只支持 Android 16/17 arm64 小米设备，从 [Release 下载](https://github.com/chenran0408/pickup-code-app/releases/latest/download/app-arm64-v8a-miroot-release.apk)；校验值见附件 `SHA256SUMS.txt`。专用包直接调用系统 AICR，不含 ML Kit 模型或本地回退；AICR 不可用时图片 OCR / 二维码识别也不可用。两包 applicationId 不同，可并装，数据各自独立。
 
 本 fork 从 v1.2.0 使用独立正式签名，后续版本沿用同一密钥。标准 Android 设备不能直接覆盖上游签名或调试签名的安装包；不要通过卸载旧包绕过签名校验，以免丢失本机记录。
 
@@ -64,7 +64,7 @@
 
 ### 核心识别
 - **识别入口**：控制面板磁贴、无障碍自动扫描、分享菜单、短信自动识别、可选短信、微信及购物应用通知识别、划词识别、手动录入
-- **智能 OCR**：ML Kit 中英文混合识别，自动归一化 Unicode 横杠变体
+- **智能 OCR**：通用版使用 ML Kit 中英文混合识别；MI-root 版使用小米系统 AICR OCR V2；自动归一化 Unicode 横杠变体
 - **多格式覆盖**：三段式 (1-2-3456)、四段式 (A1-2-3-45)、字母前缀三段式 (A1-2-3456)、字母-数字 (D-12345)、长数字、带前缀的取件码等
 - **上下文感知**：区分快递/餐饮场景，自动过滤干扰数字
 - **AI 增强**：可选接入任意 OpenAI 兼容 API（默认 GPT-4o-mini，可改）；本地结果先保存并通知，AI 后台补充，冲突地址作为候选供核对
@@ -145,7 +145,7 @@
 | 模块 | 技术 |
 |------|------|
 | UI | Jetpack Compose + Miuix (`miuix-ui-android`, `miuix-preference-android`, `miuix-icons-android`); Material3 保留为少量兼容与 Drawer 基础设施 |
-| OCR | ML Kit Text Recognition (Chinese) |
+| OCR / 条码 | 通用版随包 ML Kit 模型；MI-root 版小米系统 AICR Binder（无本地模型回退） |
 | 截屏 | 无障碍服务 takeScreenshot |
 | 外部接收 | Intent Filter (SEND / PROCESS_TEXT) |
 | 触发 | Quick Settings Tile + 无障碍自动扫描 |

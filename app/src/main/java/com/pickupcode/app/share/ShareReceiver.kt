@@ -310,8 +310,8 @@ object ShareReceiver {
             var ocrError = false
             withContext(Dispatchers.Default) {
                 try {
-                    lines = OCREngine.recognize(bitmap)
-                    coupons = CouponDetector.detect(bitmap)
+                    lines = OCREngine.recognize(bitmap, context)
+                    coupons = CouponDetector.detect(bitmap, context)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {

@@ -464,11 +464,11 @@ class PickupCodeAccessibilityService : AccessibilityService() {
 
                         scope.launch(Dispatchers.IO) {
                             try {
-                                val lines = OCREngine.recognize(bmp)
+                                val lines = OCREngine.recognize(bmp, this@PickupCodeAccessibilityService)
                                 val settings = AppPreferences.observe(this@PickupCodeAccessibilityService).first()
                                 // 券码检测（需在 recycle 前用同一张 bitmap）
                                 val coupons = if (settings.enableCouponCodes) {
-                                    CouponDetector.detect(bmp)
+                                    CouponDetector.detect(bmp, this@PickupCodeAccessibilityService)
                                 } else emptyList()
                                 val allText = lines.joinToString("\n") { it.text }
                                 // H4: 截图保存时机后移到识别成功路径（tryExtract 内），失败不再产生垃圾文件；bmp 由 tryExtract 保存后回收

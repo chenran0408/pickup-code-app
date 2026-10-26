@@ -38,8 +38,24 @@ android {
         //   28 / 1.2.0  —— 短信/微信通知识别、验证码排除、已取历史、首页快捷操作和 arm64 压缩发布
         //   29 / 1.3.0  —— Miuix 视觉迁移、通知来源管理和分享识别反馈
         //   30 / 1.3.1  —— 首页身份码快捷入口、精简悬浮导航和分类设置
-        versionCode = 30
-        versionName = "1.3.1"
+        //   31 / 1.3.2  —— 增加 MI-root 专用轻量包，通用包与专用包分开发布
+        versionCode = 31
+        versionName = "1.3.2"
+    }
+
+    // 通用版保留随包离线模型；miRoot 版面向个人小米设备，直接使用系统 AICR，不含本地备用模型。
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("general") {
+            dimension = "distribution"
+        }
+        create("miRoot") {
+            dimension = "distribution"
+            applicationIdSuffix = ".miroot"
+            // 专用包只支持 Android 16/17，允许按 API 36+ 收缩旧系统兼容分支。
+            minSdk = 36
+            targetSdk = 36
+        }
     }
 
     signingConfigs {
@@ -69,6 +85,11 @@ android {
     }
 
     packaging {
+        dex {
+            // 压缩 APK 中的 DEX，避免 API 36+ 默认存储未压缩 DEX 导致 MI-root 安装包膨胀。
+            // Android 安装时会提取 DEX；这里优先缩小分发文件体积。
+            useLegacyPackaging = true
+        }
         jniLibs {
             // 压缩离线 OCR / 条码原生库，安装时由系统解压；减少下载大小，保留离线能力。
             // -PcompressNativeLibraries=false 可复现未压缩基线，比较同版本产物。
@@ -140,10 +161,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
-    // ML Kit Text Recognition (offline, free)
-    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
-    // ML Kit Barcode Scanning (bundled, offline, detects+decodes QR/barcode)
-    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    // 只有通用版打包离线 OCR/条码模型；MI-root 版使用小米系统 AICR Binder。
+    "generalImplementation"("com.google.mlkit:text-recognition-chinese:16.0.1")
+    "generalImplementation"("com.google.mlkit:barcode-scanning:17.3.0")
 
     // EXIF 旋转（ImageUtils.decodeSampledBitmap 用 ExifInterface.rotationDegrees）。
     // 该库由 ML Kit 的 vision-common 传递引入，并被其 strictly 锁在 1.0.0（升级会与 ML Kit 约束冲突）；
@@ -156,9 +176,9 @@ dependencies {
     implementation("androidx.room:room-ktx:2.8.5")
     ksp("androidx.room:room-compiler:2.8.5")
 
-    // Kotlin coroutines + play-services (for Task.await)
+    // General uses Task.await for bundled ML Kit; MI-root does not include the Play Services bridge.
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+    "generalImplementation"("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     // DataStore for settings
     implementation("androidx.datastore:datastore-preferences:1.1.1")

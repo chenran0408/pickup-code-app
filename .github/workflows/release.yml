@@ -60,20 +60,19 @@ jobs:
           fi
 
       - name: Lint
-        run: ./gradlew lintDebug --no-daemon --max-workers=1 --console=plain
+        run: ./gradlew :app:lintGeneralDebug :app:lintMiRootDebug --no-daemon --max-workers=1 --console=plain
 
       - name: Check SQLite migrations
         run: python3 docs/tools/check-migration.py
 
       - name: Run unit tests
-        run: ./gradlew testDebugUnitTest --console=plain
+        run: ./gradlew :app:testGeneralDebugUnitTest :app:testMiRootDebugUnitTest --console=plain
 
       - name: Build release APKs
-        run: ./gradlew :app:assembleRelease --console=plain
+        run: ./gradlew :app:assembleGeneralRelease :app:assembleMiRootRelease --console=plain
 
-      # 在独立步骤签名，不依赖先前测试启动的 Gradle daemon 的环境变量。
-      - name: Sign release APK
-        if: env.SIGNED == '1'
+      # 两种包使用同一正式密钥签名；未配置密钥时只归档 unsigned 构建产物。
+      - name: Prepare release APKs
         env:
           PICKUP_STORE_PASSWORD: ${{ secrets.PICKUP_STORE_PASSWORD }}
           PICKUP_KEY_ALIAS: ${{ secrets.PICKUP_KEY_ALIAS }}
@@ -81,57 +80,78 @@ jobs:
         run: |
           set -euo pipefail
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          test -s "$GITHUB_WORKSPACE/release.keystore"
-          test -n "$PICKUP_STORE_PASSWORD"
-          test -n "$PICKUP_KEY_ALIAS"
-          test -n "$PICKUP_KEY_PASSWORD"
-          "$APKSIGNER" sign --ks "$GITHUB_WORKSPACE/release.keystore" \
-            --ks-key-alias "$PICKUP_KEY_ALIAS" \
-            --ks-pass env:PICKUP_STORE_PASSWORD --key-pass env:PICKUP_KEY_PASSWORD \
-            --out app/build/outputs/apk/release/app-arm64-v8a-release.apk \
-            app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
-
-      - name: Select APK
-        run: |
+          OUT="$GITHUB_WORKSPACE/app/build/outputs/release-assets"
+          mkdir -p "$OUT"
           if [ "$SIGNED" = "1" ]; then
-            echo "APK=app/build/outputs/apk/release/app-arm64-v8a-release.apk" >> "$GITHUB_ENV"
+            test -s "$GITHUB_WORKSPACE/release.keystore"
+            test -n "$PICKUP_STORE_PASSWORD"
+            test -n "$PICKUP_KEY_ALIAS"
+            test -n "$PICKUP_KEY_PASSWORD"
+            "$APKSIGNER" sign --ks "$GITHUB_WORKSPACE/release.keystore" \
+              --ks-key-alias "$PICKUP_KEY_ALIAS" \
+              --ks-pass env:PICKUP_STORE_PASSWORD --key-pass env:PICKUP_KEY_PASSWORD \
+              --out "$OUT/app-arm64-v8a-release.apk" \
+              app/build/outputs/apk/general/release/app-general-arm64-v8a-release-unsigned.apk
+            "$APKSIGNER" sign --ks "$GITHUB_WORKSPACE/release.keystore" \
+              --ks-key-alias "$PICKUP_KEY_ALIAS" \
+              --ks-pass env:PICKUP_STORE_PASSWORD --key-pass env:PICKUP_KEY_PASSWORD \
+              --out "$OUT/app-arm64-v8a-miroot-release.apk" \
+              app/build/outputs/apk/miRoot/release/app-miRoot-arm64-v8a-release-unsigned.apk
+            echo "APK_GENERAL=$OUT/app-arm64-v8a-release.apk" >> "$GITHUB_ENV"
+            echo "APK_MIROOT=$OUT/app-arm64-v8a-miroot-release.apk" >> "$GITHUB_ENV"
           else
-            echo "APK=app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk" >> "$GITHUB_ENV"
+            cp app/build/outputs/apk/general/release/app-general-arm64-v8a-release-unsigned.apk "$OUT/app-arm64-v8a-release-unsigned.apk"
+            cp app/build/outputs/apk/miRoot/release/app-miRoot-arm64-v8a-release-unsigned.apk "$OUT/app-arm64-v8a-miroot-release-unsigned.apk"
+            echo "APK_GENERAL=$OUT/app-arm64-v8a-release-unsigned.apk" >> "$GITHUB_ENV"
+            echo "APK_MIROOT=$OUT/app-arm64-v8a-miroot-release-unsigned.apk" >> "$GITHUB_ENV"
           fi
 
-      # 关键校验：产物版本号必须与 tag 一致，否则直接失败（防止再次出现 tag/产物错位）
-      # 注意：无 keystore 时 AGP 的产物名会带 -unsigned 后缀，所以这里用通配匹配，不能写死文件名。
-      - name: Verify APK version matches tag
+      # 两个包都必须匹配 tag 和预期 applicationId。
+      - name: Verify both APK versions and package IDs
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -x
           TAG="${GITHUB_REF_NAME#v}"
           AAPT2=$(command -v aapt2 || ls "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)
           if [ -z "$AAPT2" ]; then echo "::error::找不到 aapt2"; ls "${ANDROID_HOME:-}/build-tools" || true; exit 1; fi
-          test -s "$APK"
-          BADGING=$("$AAPT2" dump badging "$APK")
-          VERSION_NAME=$(echo "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
-          VERSION_CODE=$(echo "$BADGING" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p")
-          echo "tag=$TAG apk=$APK versionName=$VERSION_NAME versionCode=$VERSION_CODE"
-          if [ "$TAG" != "$VERSION_NAME" ]; then
-            echo "::error::tag($TAG) 与 APK versionName($VERSION_NAME) 不一致 —— tag 是否打在版本号 bump 提交（或其之后）？"
-            exit 1
-          fi
+          verify_apk() {
+            APK_PATH="$1"
+            EXPECTED_PACKAGE="$2"
+            EXPECTED_MIN_SDK="$3"
+            EXPECTED_TARGET_SDK="$4"
+            test -s "$APK_PATH"
+            BADGING=$("$AAPT2" dump badging "$APK_PATH")
+            PACKAGE=$(echo "$BADGING" | sed -n "s/package: name='\([^']*\)'.*/\1/p")
+            MIN_SDK=$(echo "$BADGING" | sed -n "s/sdkVersion:'\([^']*\)'.*/\1/p")
+            TARGET_SDK=$(echo "$BADGING" | sed -n "s/targetSdkVersion:'\([^']*\)'.*/\1/p")
+            VERSION_NAME=$(echo "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
+            VERSION_CODE=$(echo "$BADGING" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p")
+            echo "tag=$TAG apk=$APK_PATH package=$PACKAGE minSdk=$MIN_SDK targetSdk=$TARGET_SDK versionName=$VERSION_NAME versionCode=$VERSION_CODE"
+            test "$PACKAGE" = "$EXPECTED_PACKAGE"
+            test "$MIN_SDK" = "$EXPECTED_MIN_SDK"
+            test "$TARGET_SDK" = "$EXPECTED_TARGET_SDK"
+            if [ "$TAG" != "$VERSION_NAME" ]; then
+              echo "::error::tag($TAG) 与 APK versionName($VERSION_NAME) 不一致"
+              exit 1
+            fi
+          }
+          verify_apk "$APK_GENERAL" "com.pickupcode.app" "26" "35"
+          verify_apk "$APK_MIROOT" "com.pickupcode.app.miroot" "36" "36"
 
       # 校验签名（有密钥时）
       - name: Verify signature
         run: |
           APKSIGNER=$(command -v apksigner || ls "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
           if [ "$SIGNED" = "1" ]; then
-            "$APKSIGNER" verify --print-certs "$APK"
+            "$APKSIGNER" verify --print-certs "$APK_GENERAL"
+            "$APKSIGNER" verify --print-certs "$APK_MIROOT"
           else
             echo "未配置密钥，跳过签名校验（产物为 unsigned）"
           fi
 
-      - name: Compute SHA-256
+      - name: Compute SHA-256 for both APKs
         run: |
-          APK_NAME=$(basename "$APK")
-          (cd app/build/outputs/apk/release && sha256sum "$APK_NAME") | tee "$GITHUB_WORKSPACE/SHA256SUMS.txt"
+          (cd app/build/outputs/release-assets && sha256sum "$(basename "$APK_GENERAL")" "$(basename "$APK_MIROOT")") | tee "$GITHUB_WORKSPACE/SHA256SUMS.txt"
           {
             echo "## 产物校验"
             echo '```'
@@ -139,11 +159,18 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Preserve R8 mapping
+      - name: Preserve general R8 mapping
         uses: actions/upload-artifact@v4
         with:
-          name: r8-mapping-${{ github.ref_name }}
-          path: app/build/outputs/mapping/release/mapping.txt
+          name: r8-mapping-${{ github.ref_name }}-general
+          path: app/build/outputs/mapping/generalRelease/mapping.txt
+          retention-days: 90
+
+      - name: Preserve MI-root R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8-mapping-${{ github.ref_name }}-miroot
+          path: app/build/outputs/mapping/miRootRelease/mapping.txt
           retention-days: 90
 
       # 只有签名包才发布：未签名 APK 根本无法安装，发出去只会误导用户。
@@ -152,7 +179,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            app/build/outputs/apk/release/app-arm64-v8a-release.apk
+            ${{ env.APK_GENERAL }}
+            ${{ env.APK_MIROOT }}
             SHA256SUMS.txt
           body_path: docs/RELEASE_NOTES.md
           fail_on_unmatched_files: true

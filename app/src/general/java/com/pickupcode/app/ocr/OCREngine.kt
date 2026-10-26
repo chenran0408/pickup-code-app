@@ -1,6 +1,7 @@
 package com.pickupcode.app.ocr
 
 import android.graphics.Bitmap
+import android.content.Context
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
@@ -50,7 +51,7 @@ object OCREngine {
     // frequently outputs for a hyphen in courier codes like H-24137.
     private val UNICODE_DASHES = Regex("[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D\u30FC]")
 
-    suspend fun recognize(bitmap: Bitmap): List<TextLine> {
+    suspend fun recognize(bitmap: Bitmap, context: Context? = null): List<TextLine> {
         // H1: 串行化 OCR 调用（lock/unlock 包住挂起体，withLock 的 action 非挂起不能直接 await）
         mutex.lock()
         try {

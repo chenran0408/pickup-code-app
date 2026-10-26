@@ -1,6 +1,7 @@
 package com.pickupcode.app.extractor
 
 import android.graphics.Bitmap
+import android.content.Context
 import android.util.Log
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
@@ -57,7 +58,7 @@ object CouponDetector {
     private val mutex = Mutex()
 
     /** 检测并解码 bitmap 中的二维码/条码，返回解码结果；异常或未检测到返回空列表。 */
-    suspend fun detect(bitmap: Bitmap): List<CouponResult> = withContext(Dispatchers.Default) {
+    suspend fun detect(bitmap: Bitmap, context: Context? = null): List<CouponResult> = withContext(Dispatchers.Default) {
         try {
             mutex.withLock {
                 val image = InputImage.fromBitmap(bitmap, 0)
