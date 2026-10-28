@@ -45,7 +45,7 @@ fun CodeHistoryCard(item: CodeHistory, onClick: () -> Unit, onDone: () -> Unit,
         BrandLogo.logoRes(item.source, item.shareSourceName, item.shareSourcePkg)
     }
     MiuixCard(
-        modifier = modifier.fillMaxWidth().padding(horizontal = UiSpacing.page, vertical = UiSpacing.compact),
+        modifier = modifier.fillMaxWidth().padding(horizontal = UiSpacing.page, vertical = UiSpacing.item),
         cornerRadius = 20.dp,
         colors = MiuixCardDefaults.defaultColors(
             color = if (item.isActive) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLow
